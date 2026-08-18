@@ -1513,36 +1513,44 @@ async function handleSupabaseRequest(url, options) {
         break;
       }
       case 'getAllTimesheet': {
-        const { data } = await supabaseClient.from('timesheet')
-          .select('*')
-          .ilike('consultant', params.consultant || '%')
-          .order('id', { ascending: true });
-        result = (data || []).map(row => ({
-          RowID: row.id,
-          sheetRowId: row.id,
-          id: row.id,
-          Consultant: row.consultant,
-          consultant: row.consultant,
-          Date: row.date,
-          date: row.date,
-          ProjectID: row.pid || '',
-          PID: row.pid || '',
-          pid: row.pid || '',
-          Activity: row.activity || '',
-          activity: row.activity || '',
-          Location: row.location || '',
-          location: row.location || '',
-          Hours: row.hours || '',
-          hours: row.hours || '',
-          Mandays: Number(row.mandays) || 0,
-          mandays: Number(row.mandays) || 0,
-          Holiday: row.holiday || false,
-          holiday: row.holiday || false,
-          Filled: row.filled || false,
-          filled: row.filled || false,
-          Status: row.status || 'Draft',
-          status: row.status || 'Draft'
-        }));
+        let qAll = supabaseClient.from('timesheet').select('*');
+        if (params.consultant) {
+          qAll = qAll.ilike('consultant', params.consultant);
+        }
+        const { data } = await qAll.order('id', { ascending: true });
+        result = (data || []).map(row => {
+          const p = row.pid ? (PROJECTS[row.pid] || {}) : {};
+          return {
+            RowID: row.id,
+            sheetRowId: row.id,
+            id: row.id,
+            Consultant: row.consultant,
+            consultant: row.consultant,
+            ConsultantName: row.consultant,
+            Date: row.date,
+            date: row.date,
+            ProjectID: row.pid || '',
+            PID: row.pid || '',
+            pid: row.pid || '',
+            ProjectName: p.name || '',
+            Customer: p.customer || '',
+            Phase: p.phase || '',
+            Activity: row.activity || '',
+            activity: row.activity || '',
+            Location: row.location || '',
+            location: row.location || '',
+            Hours: row.hours || '',
+            hours: row.hours || '',
+            Mandays: Number(row.mandays) || 0,
+            mandays: Number(row.mandays) || 0,
+            Holiday: row.holiday || false,
+            holiday: row.holiday || false,
+            Filled: row.filled || false,
+            filled: row.filled || false,
+            Status: row.status || 'Draft',
+            status: row.status || 'Draft'
+          };
+        });
         break;
       }
       case 'getUsers': {
@@ -3486,11 +3494,11 @@ async function loadAdminData(){
     const filterEnd   = document.getElementById('adminFilterEnd').value;
     const qs = `action=getAllTimesheet&startDate=${filterStart}&endDate=${filterEnd}${filterUser?'&consultant='+encodeURIComponent(filterUser):''}`;
     const data = await fetch(`${APPS_SCRIPT_URL}?${qs}`).then(r=>r.json());
-    const rows = Array.isArray(data) ? data.filter(r=>r.ProjectID) : [];
+    const rows = Array.isArray(data) ? data.filter(r=>r.ProjectID || r.pid || r.Activity || r.activity) : [];
 
     // Populate user filter dropdown
     if(Array.isArray(data)){
-      const users = [...new Set(data.map(r=>r.ConsultantName).filter(Boolean))].sort();
+      const users = [...new Set(data.map(r=> r.ConsultantName || r.Consultant || r.consultant).filter(Boolean))].sort();
       const sel = document.getElementById('adminFilterUser');
       const cur = sel.value;
       sel.innerHTML = '<option value="">Semua Consultant</option>' + users.map(u=>`<option value="${u}"${u===cur?' selected':''}>${u}</option>`).join('');
@@ -3500,18 +3508,22 @@ async function loadAdminData(){
     if(!rows.length){ emptyEl.classList.remove('hidden'); summaryEl.textContent=''; return; }
     rows.forEach((r,i)=>{
       const tr = document.createElement('tr');
+      const cName = r.ConsultantName || r.Consultant || r.consultant || '-';
+      const pid = r.ProjectID || r.PID || r.pid || '';
+      const p = pid ? (PROJECTS[pid] || {}) : {};
+      const pName = r.ProjectName || p.name || '-';
       const sc = r.Status==='Submitted'?'color:#15803D;font-weight:600':r.Status==='Approved'?'color:#7C3AED;font-weight:600':'color:#92680B';
-      tr.innerHTML=`<td>${i+1}</td><td style="font-weight:600;font-size:12px;">${r.ConsultantName||'-'}</td>
-        <td style="white-space:nowrap;">${r.Date||'-'}</td>
-        <td style="font-family:monospace;font-size:11px;">${r.ProjectID||'-'}</td>
-        <td style="font-size:11.5px;">${r.ProjectName||'-'}</td>
-        <td style="font-size:11px;max-width:180px;word-break:break-word;">${r.Activity||'-'}</td>
-        <td>${r.Location||'-'}</td><td style="white-space:nowrap;">${r.Hours||'-'}</td>
-        <td style="text-align:center;">${r.Mandays||'-'}</td>
-        <td style="${sc}">${r.Status||'Draft'}</td>`;
+      tr.innerHTML=`<td>${i+1}</td><td style="font-weight:600;font-size:12px;">${cName}</td>
+        <td style="white-space:nowrap;">${r.Date||r.date||'-'}</td>
+        <td style="font-family:monospace;font-size:11px;">${pid||'-'}</td>
+        <td style="font-size:11.5px;">${pName}</td>
+        <td style="font-size:11px;max-width:180px;word-break:break-word;">${r.Activity||r.activity||'-'}</td>
+        <td>${r.Location||r.location||'-'}</td><td style="white-space:nowrap;">${r.Hours||r.hours||'-'}</td>
+        <td style="text-align:center;">${r.Mandays!==undefined?r.Mandays:(r.mandays||'-')}</td>
+        <td style="${sc}">${r.Status||r.status||'Draft'}</td>`;
       tbody.appendChild(tr);
     });
-    const total = rows.reduce((s,r)=>s+(parseFloat(r.Mandays)||0),0);
+    const total = rows.reduce((s,r)=>s+(parseFloat(r.Mandays!==undefined?r.Mandays:r.mandays)||0),0);
     summaryEl.textContent = `${rows.length} entri · Total Mandays: ${total.toFixed(1)}`;
   }catch(e){
     tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:#DC2626;padding:20px;">Gagal memuat data</td></tr>';
