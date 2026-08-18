@@ -1190,7 +1190,9 @@ async function handleSupabaseRequest(url, options) {
               project: user.project,
               position: user.position,
               status: user.status,
-              hasSignature: user.has_signature || false
+              hasSignature: user.has_signature || !!user.signature_base64,
+              signature: user.signature_base64 || '',
+              signature_base64: user.signature_base64 || ''
             }
           };
         }
@@ -1350,7 +1352,10 @@ async function handleSupabaseRequest(url, options) {
       }
       case 'submitForApproval': {
         const submissionId = `${params.consultant}_${params.periodStart}_${params.periodEnd}`;
-        const { data: userData } = await supabaseClient.from('users').select('signature_base64').eq('username', params.consultant).maybeSingle();
+        const { data: userData } = await supabaseClient.from('users')
+          .select('signature_base64')
+          .or(`username.eq.${params.consultant},fullname.eq.${params.consultant}`)
+          .maybeSingle();
         const consultantSignature = userData ? userData.signature_base64 : null;
 
         const subData = {
@@ -3175,16 +3180,27 @@ document.getElementById('btnExport').addEventListener('click',exportTimesheet);
 
 // =========================================================
 // EXPORT PDF (via browser print, template resmi Integra)
-// =========================================================
-// Isi 1 slot tanda tangan (PM/Dept Head/Div Head) dari data approval asli:
-// gambar signature (base64, kalau approver sudah pernah upload), nama, dan
-// timestamp approve. Kalau tahap itu belum diproses, dikosongkan.
 function fillSignatureSlot(prefix, name, timestamp, signatureBase64){
-  document.getElementById('pvSign'+prefix).textContent = name || '';
-  document.getElementById('pvTs'+prefix).textContent = timestamp ? ('Disetujui: '+formatTimestampShort(timestamp)) : '';
-  const img = document.getElementById('pvImg'+prefix);
-  if(signatureBase64){ img.src = signatureBase64; img.style.display = ''; }
-  else { img.removeAttribute('src'); img.style.display = 'none'; }
+  const elName = document.getElementById('pvSign'+prefix);
+  const elTs   = document.getElementById('pvTs'+prefix);
+  const img    = document.getElementById('pvImg'+prefix);
+  if(elName) elName.textContent = name || '';
+  if(elTs){
+    const labelPrefix = prefix === 'Consultant' ? 'Diserahkan: ' : 'Disetujui: ';
+    elTs.textContent = timestamp ? (labelPrefix + formatTimestampShort(timestamp)) : '';
+  }
+  if(img){
+    if(signatureBase64){
+      img.src = signatureBase64;
+      img.style.display = 'block';
+      img.style.maxHeight = '48px';
+      img.style.maxWidth = '110px';
+      img.style.margin = '0 auto 2px auto';
+    } else {
+      img.removeAttribute('src');
+      img.style.display = 'none';
+    }
+  }
 }
 
 // Render riwayat siklus approval SEBELUM revisi terakhir (kalau periode ini
@@ -3208,34 +3224,18 @@ function renderApprovalHistoryBlock(history){
         <div style="font-size:8px;color:#5A6479;">${s.timestamp ? formatTimestampShort(s.timestamp) : '-'}</div>
       </td>`;
     }).join('');
-    return `<div style="margin-bottom:8px;">
-      <div style="font-size:9.5px;margin-bottom:3px;">
-        <span style="font-weight:700;">Siklus ${entry.cycle}</span> —
-        direvisi ${entry.revisedAt ? formatTimestampShort(entry.revisedAt) : ''} oleh ${entry.revisedBy || '-'}${entry.revisionReason ? (' — alasan: "'+entry.revisionReason+'"') : ''}
-      </div>
-      <table style="width:100%;border-collapse:collapse;font-size:9px;"><tr>${stagesHtml}</tr></table>
-    </div>`;
+    return `<tr>${stagesHtml}</tr>`;
   }).join('');
   wrap.style.display = 'block';
 }
 
-// Isi template #pvRoot dari data apa pun (rowState personal ATAU rows hasil
-// fetch admin untuk consultant tertentu, ATAU detail submission asli).
-// year/month dipakai buat hitung tanggal Inggris per baris (baris ke-idx =
-// tanggal idx+1 di bulan itu). approval (opsional) = data asli dari sheet
-// Submissions (nama/timestamp/signature per tahap + Status keseluruhan) —
-// kalau tidak diisi berarti periode ini belum pernah disubmit (draft murni).
-// Parse tanggal dari row.date (format "15 Jul 2026", bulan Inggris) jadi Date object.
-// Dipakai buat cetak PDF supaya benar untuk periode apapun (gak terpaku ke 1 bulan kalender).
 function parseSheetDateKey(str){
+  if(!str) return null;
   const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
 }
 
 function resolveApproverName(role, defaultName){
-  if(CURRENT_USER && CURRENT_USER.project){
-    if(CURRENT_USER.project.toLowerCase().includes('mbg') && role === 'pm') return 'Yudo Purnomo';
-  }
   if(role === 'pm') return 'Jodie Satria Effendi';
   if(role === 'depthead') return 'Wisnu Hendra Pratama';
   if(role === 'divhead') return 'Agust Triyanto';
@@ -3271,10 +3271,9 @@ function renderPrintDocument({consultant, position, project, customer, monthYear
     renderApprovalHistoryBlock([]);
     document.getElementById('pvWatermark').style.display = 'none';
   } else {
-    // Mode Digital:
-    // Sesuai instruksi: Tanda tangan PM dikosongkan sementara, namun NAMA PM tetap tampil jelas di bawah kotak
+    // Mode Digital: Tampilkan tanda tangan lengkap (Consultant, PM, Dept Head, Div Head)
     fillSignatureSlot('Consultant', consultant, approval && approval.SubmittedAt, approval && approval.Consultant_Signature);
-    fillSignatureSlot('PM',       pmName,       null, null); // Kotak ttd PM kosong sementara, nama PM tetap ada
+    fillSignatureSlot('PM',       pmName,       approval && approval.PM_Timestamp, approval && approval.PM_Signature);
     fillSignatureSlot('DeptHead', deptHeadName, approval && approval.DeptHead_Timestamp, approval && approval.DeptHead_Signature);
     fillSignatureSlot('DivHead',  divHeadName,  approval && approval.DivHead_Timestamp,  approval && approval.DivHead_Signature);
     renderApprovalHistoryBlock(approval && approval.ApprovalHistory);
@@ -3444,6 +3443,7 @@ document.getElementById('btnModalRevisiConfirm').addEventListener('click', async
 
 function buildPrintTimesheetView(isManualSign=false){
   const [sy,sm] = CURRENT_PERIOD.start.split('-').map(Number);
+  const mySig = CURRENT_USER && (CURRENT_USER.signature || CURRENT_USER.signature_base64);
   renderPrintDocument({
     consultant: (CURRENT_USER && CURRENT_USER.fullname) || CONSULTANT_NAME || '-',
     position:   (CURRENT_USER && CURRENT_USER.position) || '-',
@@ -3452,7 +3452,7 @@ function buildPrintTimesheetView(isManualSign=false){
     monthYearLabel: periodLabel(CURRENT_PERIOD),
     year: sy, month: sm, // fallback saja kalau parseSheetDateKey gagal
     rows: rowState,
-    approval: null, // draft murni
+    approval: MY_LATEST_SUBMISSION || (mySig ? { Consultant_Signature: mySig, SubmittedAt: new Date().toISOString() } : null),
     isManualSign: isManualSign
   });
 }
