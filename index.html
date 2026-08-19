@@ -1489,10 +1489,11 @@ async function handleSupabaseRequest(url, options) {
   try {
     switch (action) {
       case 'login': {
+        const uTrim = (params.username || '').trim();
         const { data: user } = await supabaseClient.from('users')
           .select('*')
-          .eq('username', params.username)
-          .eq('password', params.password)
+          .ilike('username', uTrim)
+          .eq('password', (params.password || '').trim())
           .eq('status', 'Aktif')
           .maybeSingle();
 
@@ -1671,7 +1672,7 @@ async function handleSupabaseRequest(url, options) {
         const submissionId = `${params.consultant}_${params.periodStart}_${params.periodEnd}`;
         const { data: userData } = await supabaseClient.from('users')
           .select('signature_base64')
-          .or(`username.eq.${params.consultant},fullname.eq.${params.consultant}`)
+          .or(`username.eq."${params.consultant}",fullname.eq."${params.consultant}"`)
           .maybeSingle();
         const consultantSignature = userData ? userData.signature_base64 : null;
 
@@ -2124,6 +2125,11 @@ const APPROVER_ROLES  = ['approver_pm','approver_depthead','approver_divhead'];
 const APPROVER_LABELS = { approver_pm:'Approver - Project Manager', approver_depthead:'Approver - Dept Head', approver_divhead:'Approver - Division Head' };
 
 function initSession(user){
+  if(!user) return;
+  user.role = (user.role || 'user').toLowerCase();
+  user.fullname = user.fullname || user.FullName || user.username || 'User';
+  user.username = user.username || user.Username || '';
+  user.hasSignature = user.hasSignature || !!user.signature_base64 || !!user.signature;
   CURRENT_USER    = user;
   CONSULTANT_NAME = user.fullname;
   const loginPage = document.getElementById('loginPage');
