@@ -2128,6 +2128,13 @@ function initSession(user){
     btnSigGlobal.style.background = '#FEF2E3'; btnSigGlobal.style.color = '#92680B'; btnSigGlobal.style.borderColor = '#F5E6A8';
   }
 
+  // Menu "Profil Saya & Dokumen" HANYA untuk role 'user' (Konsultan / Freelance).
+  // Sembunyikan untuk administrator, PM, Dept Head, Div Head.
+  const btnProf = document.getElementById('btnOpenUserProfile');
+  if(btnProf){
+    btnProf.style.display = (user.role === 'user') ? 'flex' : 'none';
+  }
+
   const isApprover = APPROVER_ROLES.includes(user.role);
   document.getElementById('sidebarRole').textContent = isApprover
     ? (APPROVER_LABELS[user.role] || 'Approver')
@@ -5262,7 +5269,7 @@ document.getElementById('btnPublicTabSite').addEventListener('click', () => {
 let USER_PROF_ACTIVE_TAB = 'biodata';
 
 function openUserProfileModal(){
-  if(!CURRENT_USER) return;
+  if(!CURRENT_USER || CURRENT_USER.role !== 'user') return;
   
   // Fill Biodata Fields
   document.getElementById('profUsername').value = CURRENT_USER.username || '';
