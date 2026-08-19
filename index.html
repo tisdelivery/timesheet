@@ -814,19 +814,47 @@ html,body{overflow-x:hidden;max-width:100%;}
       </div>
     </div>
 
-    <!-- MODAL UPLOAD TANDA TANGAN -->
+    <!-- MODAL ATUR TANDA TANGAN (CANVAS & UPLOAD) -->
     <div id="modalSignature" class="modal-overlay" style="display:none;">
-      <div class="modal-box" style="width:420px;">
+      <div class="modal-box" style="width:460px;">
         <div class="modal-header">
-          <div class="font-bold text-base">Upload Tanda Tangan</div>
+          <div>
+            <div class="font-bold text-base">Atur Tanda Tangan Digital</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">Pilih gores langsung di layar atau upload berkas foto tanda tangan</div>
+          </div>
           <button id="btnCloseSignatureModal" style="background:none;border:none;cursor:pointer;"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button>
         </div>
         <div class="modal-body">
-          <div class="text-[12px] text-slate-500 mb-3">Upload gambar tanda tangan (PNG, background transparan lebih baik). Gambar otomatis dikompres sebelum disimpan. Disimpan sekali — otomatis ditempel setiap kali Anda klik Approve.</div>
-          <input type="file" id="signatureFileInput" accept="image/png,image/jpeg" style="font-size:12px;">
-          <div id="signaturePreviewWrap" style="display:none;margin-top:12px;text-align:center;padding:12px;border:1px dashed var(--border);border-radius:10px;">
-            <img id="signaturePreviewImg" style="max-height:90px;max-width:100%;">
+          <!-- TAB SWITCHER: Draw vs Upload -->
+          <div class="flex items-center gap-2 mb-3" style="background:#F1F5F9;padding:4px;border-radius:10px;">
+            <button id="sigTabDraw" class="btn flex-1 text-xs justify-center font-semibold" style="background:#fff;color:var(--blue);box-shadow:0 1px 3px rgba(0,0,0,.08);"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i>Gores Langsung (Canvas)</button>
+            <button id="sigTabUpload" class="btn flex-1 text-xs justify-center font-semibold" style="background:transparent;color:#64748B;border:none;"><i data-lucide="upload" class="w-3.5 h-3.5"></i>Upload File</button>
           </div>
+
+          <!-- PANEL 1: CANVAS DRAWING -->
+          <div id="sigPanelDraw">
+            <div class="text-[11.5px] text-slate-500 mb-2">Tanda tangan di dalam kotak berikut menggunakan mouse, stylus, atau jari:</div>
+            <div style="position:relative;border:1.5px dashed #94A3B8;border-radius:10px;background:#F8FAFC;overflow:hidden;">
+              <canvas id="sigCanvas" width="410" height="170" style="display:block;width:100%;height:170px;cursor:crosshair;touch-action:none;"></canvas>
+              <div id="sigCanvasPlaceholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94A3B8;font-size:12px;pointer-events:none;">
+                <span>✍️ Buat tanda tangan di sini</span>
+              </div>
+            </div>
+            <div class="flex justify-between items-center mt-2">
+              <span class="text-[10.5px] text-slate-400">Garis halus transparan otomatis</span>
+              <button id="btnClearCanvas" class="btn btn-outline text-[11px]" style="padding:4px 10px;height:28px;"><i data-lucide="rotate-ccw" class="w-3 h-3"></i>Hapus / Ulangi</button>
+            </div>
+          </div>
+
+          <!-- PANEL 2: FILE UPLOAD -->
+          <div id="sigPanelUpload" style="display:none;">
+            <div class="text-[12px] text-slate-500 mb-3">Upload gambar tanda tangan (PNG/JPG, format transparan lebih baik). Gambar otomatis dikompres sebelum disimpan.</div>
+            <input type="file" id="signatureFileInput" accept="image/png,image/jpeg" style="font-size:12px;">
+            <div id="signaturePreviewWrap" style="display:none;margin-top:12px;text-align:center;padding:12px;border:1px dashed var(--border);border-radius:10px;background:#FAFAFA;">
+              <img id="signaturePreviewImg" style="max-height:90px;max-width:100%;">
+            </div>
+          </div>
+
           <div id="signatureError" style="color:#DC2626;font-size:12px;margin-top:8px;"></div>
         </div>
         <div class="modal-footer">
@@ -4404,13 +4432,115 @@ function compressSignatureImage(file, maxChars){
   });
 }
 
+let SIGNATURE_MODE = 'draw'; // 'draw' | 'upload'
 let SIGNATURE_BASE64 = '';
+let SIG_CANVAS_DIRTY = false;
+let sigCanvas, sigCtx;
+let isDrawing = false;
+
+function initSignatureCanvas(){
+  sigCanvas = document.getElementById('sigCanvas');
+  if(!sigCanvas) return;
+  sigCtx = sigCanvas.getContext('2d');
+  
+  // Set stroke style for smooth pen lines
+  sigCtx.strokeStyle = '#0F172A';
+  sigCtx.lineWidth = 2.5;
+  sigCtx.lineCap = 'round';
+  sigCtx.lineJoin = 'round';
+
+  function getCoords(e){
+    const rect = sigCanvas.getBoundingClientRect();
+    const scaleX = sigCanvas.width / rect.width;
+    const scaleY = sigCanvas.height / rect.height;
+    if (e.touches && e.touches[0]) {
+      return {
+        x: (e.touches[0].clientX - rect.left) * scaleX,
+        y: (e.touches[0].clientY - rect.top) * scaleY
+      };
+    }
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
+    };
+  }
+
+  function startDraw(e){
+    e.preventDefault();
+    isDrawing = true;
+    const coords = getCoords(e);
+    sigCtx.beginPath();
+    sigCtx.moveTo(coords.x, coords.y);
+    document.getElementById('sigCanvasPlaceholder').style.display = 'none';
+  }
+
+  function draw(e){
+    if(!isDrawing) return;
+    e.preventDefault();
+    const coords = getCoords(e);
+    sigCtx.lineTo(coords.x, coords.y);
+    sigCtx.stroke();
+    SIG_CANVAS_DIRTY = true;
+  }
+
+  function stopDraw(e){
+    if(!isDrawing) return;
+    e.preventDefault();
+    isDrawing = false;
+    sigCtx.closePath();
+  }
+
+  sigCanvas.addEventListener('mousedown', startDraw);
+  sigCanvas.addEventListener('mousemove', draw);
+  sigCanvas.addEventListener('mouseup', stopDraw);
+  sigCanvas.addEventListener('mouseleave', stopDraw);
+
+  sigCanvas.addEventListener('touchstart', startDraw, { passive: false });
+  sigCanvas.addEventListener('touchmove', draw, { passive: false });
+  sigCanvas.addEventListener('touchend', stopDraw, { passive: false });
+}
+
+function clearSignatureCanvas(){
+  if(!sigCanvas || !sigCtx) return;
+  sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+  SIG_CANVAS_DIRTY = false;
+  document.getElementById('sigCanvasPlaceholder').style.display = 'flex';
+}
+
+function setSignatureTab(mode){
+  SIGNATURE_MODE = mode;
+  const isDraw = mode === 'draw';
+  document.getElementById('sigPanelDraw').style.display = isDraw ? 'block' : 'none';
+  document.getElementById('sigPanelUpload').style.display = isDraw ? 'none' : 'block';
+
+  const tabDraw = document.getElementById('sigTabDraw');
+  const tabUpload = document.getElementById('sigTabUpload');
+  if(isDraw){
+    tabDraw.style.background = '#fff';
+    tabDraw.style.color = 'var(--blue)';
+    tabDraw.style.boxShadow = '0 1px 3px rgba(0,0,0,.08)';
+    tabUpload.style.background = 'transparent';
+    tabUpload.style.color = '#64748B';
+    tabUpload.style.boxShadow = 'none';
+  } else {
+    tabUpload.style.background = '#fff';
+    tabUpload.style.color = 'var(--blue)';
+    tabUpload.style.boxShadow = '0 1px 3px rgba(0,0,0,.08)';
+    tabDraw.style.background = 'transparent';
+    tabDraw.style.color = '#64748B';
+    tabDraw.style.boxShadow = 'none';
+  }
+}
+
 function openSignatureModal(){
   document.getElementById('signatureFileInput').value = '';
   document.getElementById('signaturePreviewWrap').style.display = 'none';
   document.getElementById('signatureError').textContent = '';
   SIGNATURE_BASE64 = '';
   document.getElementById('modalSignature').style.display = 'flex';
+  initSignatureCanvas();
+  clearSignatureCanvas();
+  setSignatureTab('draw');
   lucide.createIcons();
 }
 function closeSignatureModal(){ document.getElementById('modalSignature').style.display = 'none'; }
@@ -4419,6 +4549,9 @@ document.getElementById('btnOpenSignatureModal2').addEventListener('click', open
 document.getElementById('btnOpenSignatureModalGlobal').addEventListener('click', openSignatureModal);
 document.getElementById('btnCloseSignatureModal').addEventListener('click', closeSignatureModal);
 document.getElementById('btnCloseSignatureModal2').addEventListener('click', closeSignatureModal);
+document.getElementById('btnClearCanvas').addEventListener('click', clearSignatureCanvas);
+document.getElementById('sigTabDraw').addEventListener('click', ()=>setSignatureTab('draw'));
+document.getElementById('sigTabUpload').addEventListener('click', ()=>setSignatureTab('upload'));
 
 document.getElementById('signatureFileInput').addEventListener('change', async (e)=>{
   const file = e.target.files[0];
@@ -4447,27 +4580,44 @@ document.getElementById('signatureFileInput').addEventListener('change', async (
 
 document.getElementById('btnSaveSignature').addEventListener('click', async ()=>{
   const errEl = document.getElementById('signatureError');
-  if(!SIGNATURE_BASE64){ errEl.textContent = 'Pilih file tanda tangan dulu.'; return; }
+  errEl.textContent = '';
+
+  let finalSignature = '';
+  if(SIGNATURE_MODE === 'draw'){
+    if(!SIG_CANVAS_DIRTY){
+      errEl.textContent = 'Silakan buat goresan tanda tangan Anda di kotak kanvas terlebih dahulu.';
+      return;
+    }
+    finalSignature = sigCanvas.toDataURL('image/png');
+  } else {
+    if(!SIGNATURE_BASE64){
+      errEl.textContent = 'Pilih file gambar tanda tangan terlebih dahulu.';
+      return;
+    }
+    finalSignature = SIGNATURE_BASE64;
+  }
+
   const btn = document.getElementById('btnSaveSignature');
   btn.classList.add('btn-loading'); btn.disabled = true;
-  errEl.textContent = '';
   try{
     const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({
       action:'saveApproverSignature',
       username: CURRENT_USER.username,
-      signatureBase64: SIGNATURE_BASE64,
+      signatureBase64: finalSignature,
     })});
     const data = await res.json();
     if(data.error){ errEl.textContent = data.error; }
     else{
       CURRENT_USER.hasSignature = true;
+      CURRENT_USER.signature = finalSignature;
+      CURRENT_USER.signature_base64 = finalSignature;
       document.getElementById('approvalSignatureBanner').style.display = 'none';
       const btnSigGlobal = document.getElementById('btnOpenSignatureModalGlobal');
       btnSigGlobal.style.background = '#EAF2FF'; btnSigGlobal.style.color = '#1D4ED8'; btnSigGlobal.style.borderColor = '#C7DBFB';
-      showToast('Tanda tangan berhasil disimpan.','ok');
+      showToast('Tanda tangan digital berhasil disimpan.','ok');
       closeSignatureModal();
     }
-  }catch(e){ errEl.textContent = 'Gagal menyimpan (' + (e.message || 'error tidak diketahui') + '). Coba lagi atau pakai gambar tanda tangan yang lebih sederhana.'; }
+  }catch(e){ errEl.textContent = 'Gagal menyimpan (' + (e.message || 'error tidak diketahui') + '). Coba lagi atau gunakan goresan canvas yang lebih simpel.'; }
   btn.classList.remove('btn-loading'); btn.disabled = false;
 });
 
