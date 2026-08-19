@@ -751,10 +751,11 @@ html,body{overflow-x:hidden;max-width:100%;}
           </div>
         </div>
 
-        <!-- TAB SWITCHER: Menunggu Approval / Riwayat -->
+        <!-- TAB SWITCHER: Menunggu Approval / Riwayat / Monitoring -->
         <div class="flex items-center gap-1 mb-4" style="border-bottom:1px solid var(--border);">
           <button class="approvalTabBtn" data-tab="pending" style="padding:8px 14px;font-size:12.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--blue);color:var(--blue);">Menunggu Approval<span id="approvalPendingCount" style="display:none;margin-left:6px;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;">0</span></button>
           <button class="approvalTabBtn" data-tab="history" style="padding:8px 14px;font-size:12.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94A3B8;">Riwayat</button>
+          <button class="approvalTabBtn" data-tab="monitoring" style="padding:8px 14px;font-size:12.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94A3B8;">Monitoring Progress</button>
         </div>
 
         <div id="approvalPendingPanel" style="overflow-x:auto;">
@@ -769,6 +770,13 @@ html,body{overflow-x:hidden;max-width:100%;}
             <th>Consultant</th><th>Project</th><th>Periode</th><th>Status</th><th>Tanggal Aksi</th><th>Aksi</th>
           </tr></thead><tbody id="approvalHistoryTBody"></tbody></table>
           <div id="approvalHistoryEmpty" class="hidden text-center py-8 text-slate-400 text-sm">Belum ada riwayat approval yang Anda proses.</div>
+        </div>
+
+        <div id="approvalMonitoringPanel" style="overflow-x:auto;display:none;">
+          <table class="ts"><thead><tr>
+            <th>Consultant</th><th>Project / Posisi</th><th>Status Pengisian</th><th>Aksi / Detail</th>
+          </tr></thead><tbody id="approvalMonitoringTBody"></tbody></table>
+          <div id="approvalMonitoringEmpty" class="hidden text-center py-8 text-slate-400 text-sm">Semua consultant sudah mengirimkan timesheet.</div>
         </div>
       </div>
     </section>
@@ -4104,10 +4112,12 @@ function formatTimestampShort(val){
 }
 
 document.getElementById('btnApprovalRefresh').addEventListener('click', ()=>{
-  if(APPROVAL_ACTIVE_TAB==='history') loadApprovalHistory(); else loadPendingApprovals();
+  if(APPROVAL_ACTIVE_TAB==='history') loadApprovalHistory();
+  else if(APPROVAL_ACTIVE_TAB==='monitoring') loadMonitoringProgress();
+  else loadPendingApprovals();
 });
 
-// Tab switcher Menunggu Approval / Riwayat
+// Tab switcher Menunggu Approval / Riwayat / Monitoring
 document.querySelectorAll('.approvalTabBtn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     APPROVAL_ACTIVE_TAB = btn.dataset.tab;
@@ -4117,15 +4127,109 @@ document.querySelectorAll('.approvalTabBtn').forEach(btn=>{
       b.style.borderBottomColor = active ? 'var(--blue)' : 'transparent';
     });
     const isHistory = APPROVAL_ACTIVE_TAB==='history';
-    document.getElementById('approvalPendingPanel').style.display = isHistory ? 'none' : '';
+    const isMonitoring = APPROVAL_ACTIVE_TAB==='monitoring';
+    document.getElementById('approvalPendingPanel').style.display = (isHistory || isMonitoring) ? 'none' : '';
     document.getElementById('approvalHistoryPanel').style.display = isHistory ? '' : 'none';
-    document.getElementById('approvalStageTitle').textContent = isHistory ? 'Riwayat Approval' : 'Menunggu Approval';
-    document.getElementById('approvalStageDesc').textContent = isHistory
-      ? 'Timesheet yang sudah pernah Anda approve atau reject'
-      : 'Daftar timesheet yang menunggu review Anda';
-    if(isHistory && !APPROVAL_HISTORY.length) loadApprovalHistory();
+    document.getElementById('approvalMonitoringPanel').style.display = isMonitoring ? '' : 'none';
+
+    if (isHistory) {
+      document.getElementById('approvalStageTitle').textContent = 'Riwayat Approval';
+      document.getElementById('approvalStageDesc').textContent = 'Timesheet yang sudah pernah Anda approve atau reject';
+      if(!APPROVAL_HISTORY.length) loadApprovalHistory();
+    } else if (isMonitoring) {
+      document.getElementById('approvalStageTitle').textContent = 'Monitoring Progress';
+      document.getElementById('approvalStageDesc').textContent = 'Pantau konsultan aktif yang belum menyerahkan timesheet periode ini';
+      loadMonitoringProgress();
+    } else {
+      document.getElementById('approvalStageTitle').textContent = 'Menunggu Approval';
+      document.getElementById('approvalStageDesc').textContent = 'Daftar timesheet yang menunggu review Anda';
+      loadPendingApprovals();
+    }
   });
 });
+
+async function loadMonitoringProgress(){
+  if(!APPS_SCRIPT_URL || !CURRENT_USER || !APPROVER_ROLES.includes(CURRENT_USER.role)) return;
+  const tbody = document.getElementById('approvalMonitoringTBody');
+  const empty = document.getElementById('approvalMonitoringEmpty');
+  tbody.innerHTML = `<tr><td colspan="4" class="text-center text-slate-400 py-6">Memuat progress...</td></tr>`;
+  empty.classList.add('hidden');
+  try {
+    const users = await fetch(`${APPS_SCRIPT_URL}?action=getUsers`).then(r=>r.json());
+    const consultants = users.filter(u => u.Role === 'user' && u.Status === 'Aktif');
+
+    let pmProject = CURRENT_USER.project || '';
+    let filtered = consultants;
+    if (CURRENT_USER.role === 'approver_pm' && pmProject) {
+      filtered = consultants.filter(c => c.Project === pmProject);
+    }
+
+    if (!filtered.length) {
+      tbody.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+
+    const { data: submissions } = await supabaseClient.from('submissions')
+      .select('consultant, status, submission_id')
+      .eq('period_start', CURRENT_PERIOD.start)
+      .eq('period_end', CURRENT_PERIOD.end);
+
+    const subMap = {};
+    if (submissions && submissions.length) {
+      submissions.forEach(s => {
+        subMap[s.consultant.toLowerCase()] = s;
+      });
+    }
+
+    const { data: tsRows } = await supabaseClient.from('timesheet')
+      .select('consultant, filled')
+      .gte('date', CURRENT_PERIOD.start)
+      .lte('date', CURRENT_PERIOD.end);
+
+    const tsCountMap = {};
+    if (tsRows && tsRows.length) {
+      tsRows.forEach(r => {
+        const cKey = r.consultant.toLowerCase();
+        if (!tsCountMap[cKey]) tsCountMap[cKey] = { total: 0, filled: 0 };
+        tsCountMap[cKey].total++;
+        if (r.filled) tsCountMap[cKey].filled++;
+      });
+    }
+
+    tbody.innerHTML = filtered.map(c => {
+      const cKey = c.FullName.toLowerCase();
+      const sub = subMap[cKey];
+      let statusHTML = '';
+      let actionHTML = '';
+
+      if (sub) {
+        statusHTML = statusPillHTML(sub.status);
+        actionHTML = `<span class="text-green-600 text-xs font-semibold">Sudah Submit</span>`;
+      } else {
+        const tsInfo = tsCountMap[cKey];
+        if (tsInfo && tsInfo.filled > 0) {
+          statusHTML = `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:#FEF2E3;color:#92680B;">Draft (${tsInfo.filled} Hari Terisi)</span>`;
+          actionHTML = `<span class="text-amber-500 text-xs font-semibold">Mengisi Draft</span>`;
+        } else {
+          statusHTML = `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:#F1F5F9;color:#64748B;">Belum Mengisi</span>`;
+          actionHTML = `<span class="text-red-500 text-xs font-semibold">Belum Mulai</span>`;
+        }
+      }
+
+      return `<tr>
+        <td style="font-weight:600;">${c.FullName}</td>
+        <td><div class="text-[12.5px] font-semibold">${c.Project || '-'}</div><div class="text-[10px] text-slate-400">${c.Position || '-'}</div></td>
+        <td>${statusHTML}</td>
+        <td>${actionHTML}</td>
+      </tr>`;
+    }).join('');
+
+  } catch(e) {
+    console.error(e);
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-red-400 py-6">Gagal memuat monitoring progress.</td></tr>`;
+  }
+}
 
 async function openApprovalDetail(submissionId, readonly){
   const modal = document.getElementById('modalApprovalDetail');
