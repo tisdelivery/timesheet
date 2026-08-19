@@ -5645,6 +5645,35 @@ function getUserDocKeys(username, fullname){
 
 async function getStoredContract(username, fullname){
   const aliases = getUserDocKeys(username, fullname);
+  
+  // 1. Query Supabase Cloud
+  try {
+    const { data } = await supabaseClient.from('user_documents')
+      .select('*')
+      .eq('doc_type', 'contract')
+      .or(`username.in.(${aliases.map(a=>`"${a}"`).join(',')}),fullname.in.(${aliases.map(a=>`"${a}"`).join(',')})`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if(data && data.file_data){
+      const contractObj = {
+        id: data.id,
+        fileName: data.file_name,
+        fileSize: data.file_size,
+        uploadedAt: data.created_at,
+        fileData: data.file_data
+      };
+      for(const alias of aliases){
+        STMS_STORAGE.setItem(`stms_contract_${alias}`, contractObj);
+      }
+      return contractObj;
+    }
+  } catch(e) {
+    console.warn('Supabase fetch contract error:', e);
+  }
+
+  // 2. Fallback to local cache
   for(const alias of aliases){
     const key = `stms_contract_${alias}`;
     const data = await STMS_STORAGE.getItem(key);
@@ -5655,6 +5684,37 @@ async function getStoredContract(username, fullname){
 
 async function saveStoredContract(username, fullname, contractObj){
   const aliases = getUserDocKeys(username, fullname);
+
+  // 1. Save to Supabase Cloud
+  try {
+    const { data: existing } = await supabaseClient.from('user_documents')
+      .select('id')
+      .eq('doc_type', 'contract')
+      .or(`username.in.(${aliases.map(a=>`"${a}"`).join(',')}),fullname.in.(${aliases.map(a=>`"${a}"`).join(',')})`)
+      .limit(1)
+      .maybeSingle();
+
+    const payload = {
+      username: username || '',
+      fullname: fullname || username || '',
+      doc_type: 'contract',
+      period_desc: 'Kontrak Kerja',
+      file_name: contractObj.fileName,
+      file_size: contractObj.fileSize,
+      file_data: contractObj.fileData,
+      created_at: new Date().toISOString()
+    };
+
+    if(existing && existing.id){
+      await supabaseClient.from('user_documents').update(payload).eq('id', existing.id);
+    } else {
+      await supabaseClient.from('user_documents').insert(payload);
+    }
+  } catch(e) {
+    console.warn('Supabase save contract error:', e);
+  }
+
+  // 2. Cache in IndexedDB
   for(const alias of aliases){
     const key = `stms_contract_${alias}`;
     await STMS_STORAGE.setItem(key, contractObj);
@@ -5663,6 +5723,18 @@ async function saveStoredContract(username, fullname, contractObj){
 
 async function removeStoredContract(username, fullname){
   const aliases = getUserDocKeys(username, fullname);
+
+  // 1. Delete from Supabase Cloud
+  try {
+    await supabaseClient.from('user_documents')
+      .delete()
+      .eq('doc_type', 'contract')
+      .or(`username.in.(${aliases.map(a=>`"${a}"`).join(',')}),fullname.in.(${aliases.map(a=>`"${a}"`).join(',')})`);
+  } catch(e) {
+    console.warn('Supabase delete contract error:', e);
+  }
+
+  // 2. Delete from local cache
   for(const alias of aliases){
     const key = `stms_contract_${alias}`;
     await STMS_STORAGE.removeItem(key);
@@ -5671,6 +5743,34 @@ async function removeStoredContract(username, fullname){
 
 async function getStoredInvoices(username, fullname){
   const aliases = getUserDocKeys(username, fullname);
+
+  // 1. Query Supabase Cloud
+  try {
+    const { data } = await supabaseClient.from('user_documents')
+      .select('*')
+      .eq('doc_type', 'invoice')
+      .or(`username.in.(${aliases.map(a=>`"${a}"`).join(',')}),fullname.in.(${aliases.map(a=>`"${a}"`).join(',')})`)
+      .order('created_at', { ascending: false });
+
+    if(data && Array.isArray(data)){
+      const mapped = data.map(r => ({
+        id: r.id,
+        periodDesc: r.period_desc,
+        fileName: r.file_name,
+        fileSize: r.file_size,
+        uploadedAt: r.created_at,
+        fileData: r.file_data
+      }));
+      for(const alias of aliases){
+        STMS_STORAGE.setItem(`stms_invoices_${alias}`, mapped);
+      }
+      return mapped;
+    }
+  } catch(e) {
+    console.warn('Supabase fetch invoices error:', e);
+  }
+
+  // 2. Fallback to local cache
   for(const alias of aliases){
     const key = `stms_invoices_${alias}`;
     const data = await STMS_STORAGE.getItem(key);
@@ -5679,11 +5779,54 @@ async function getStoredInvoices(username, fullname){
   return [];
 }
 
-async function saveStoredInvoices(username, fullname, invoicesList){
+async function saveStoredInvoices(username, fullname, invObj){
   const aliases = getUserDocKeys(username, fullname);
+
+  // 1. Save to Supabase Cloud
+  try {
+    const payload = {
+      username: username || '',
+      fullname: fullname || username || '',
+      doc_type: 'invoice',
+      period_desc: invObj.periodDesc,
+      file_name: invObj.fileName,
+      file_size: invObj.fileSize,
+      file_data: invObj.fileData,
+      created_at: new Date().toISOString()
+    };
+    await supabaseClient.from('user_documents').insert(payload);
+  } catch(e) {
+    console.warn('Supabase insert invoice error:', e);
+  }
+
+  // 2. Update local cache
+  const list = await getStoredInvoices(username, fullname);
   for(const alias of aliases){
     const key = `stms_invoices_${alias}`;
-    await STMS_STORAGE.setItem(key, invoicesList);
+    await STMS_STORAGE.setItem(key, list);
+  }
+}
+
+async function deleteStoredInvoice(username, fullname, invoiceId, periodDesc){
+  const aliases = getUserDocKeys(username, fullname);
+
+  // 1. Delete from Supabase Cloud
+  try {
+    if(invoiceId && typeof invoiceId === 'number'){
+      await supabaseClient.from('user_documents').delete().eq('id', invoiceId);
+    } else {
+      await supabaseClient.from('user_documents').delete().eq('doc_type', 'invoice').eq('period_desc', periodDesc).or(`username.in.(${aliases.map(a=>`"${a}"`).join(',')}),fullname.in.(${aliases.map(a=>`"${a}"`).join(',')})`);
+    }
+  } catch(e) {
+    console.warn('Supabase delete invoice error:', e);
+  }
+
+  // 2. Update local cache
+  const list = await getStoredInvoices(username, fullname);
+  const filtered = list.filter(inv => inv.id !== invoiceId && inv.periodDesc !== periodDesc);
+  for(const alias of aliases){
+    const key = `stms_invoices_${alias}`;
+    await STMS_STORAGE.setItem(key, filtered);
   }
 }
 
@@ -5763,7 +5906,7 @@ document.getElementById('btnSaveContractFile').addEventListener('click', () => {
     };
     try {
       await saveStoredContract(CURRENT_USER.username, CURRENT_USER.fullname, contractObj);
-      showToast('Berkas kontrak berhasil disimpan.','ok');
+      showToast('Berkas kontrak berhasil disimpan ke Cloud Supabase.','ok');
       loadUserContractDoc();
     } catch(err){
       errEl.textContent = 'Gagal menyimpan berkas kontrak: ' + err.message;
@@ -5815,9 +5958,10 @@ async function loadUserInvoicesList(){
   tbody.querySelectorAll('.btnDeleteInvoiceItem').forEach(btn => {
     btn.addEventListener('click', async () => {
       const idx = Number(btn.dataset.idx);
+      const inv = list[idx];
+      if(!inv) return;
       if(!confirm('Apakah Anda yakin ingin menghapus invoice ini?')) return;
-      list.splice(idx, 1);
-      await saveStoredInvoices(CURRENT_USER.username, CURRENT_USER.fullname, list);
+      await deleteStoredInvoice(CURRENT_USER.username, CURRENT_USER.fullname, inv.id, inv.periodDesc);
       showToast('Invoice berhasil dihapus.','ok');
       loadUserInvoicesList();
     });
@@ -5850,18 +5994,15 @@ document.getElementById('btnUploadInvoice').addEventListener('click', () => {
   reader.onload = async (e) => {
     const fileData = e.target.result;
     const invObj = {
-      id: Date.now(),
       periodDesc: desc,
       fileName: file.name,
       fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
       uploadedAt: new Date().toISOString(),
       fileData: fileData
     };
-    const list = await getStoredInvoices(CURRENT_USER.username, CURRENT_USER.fullname);
-    list.unshift(invObj); // newest on top
     try {
-      await saveStoredInvoices(CURRENT_USER.username, CURRENT_USER.fullname, list);
-      showToast('Invoice berhasil diunggah.','ok');
+      await saveStoredInvoices(CURRENT_USER.username, CURRENT_USER.fullname, invObj);
+      showToast('Invoice berhasil diunggah ke Cloud Supabase.','ok');
       loadUserInvoicesList();
     } catch(err){
       errEl.textContent = 'Gagal menyimpan invoice: ' + err.message;
@@ -6135,9 +6276,9 @@ async function openViewUserDocsModal(username, fullname, project, defaultTab='ko
         btn.addEventListener('click', ()=>{
           const idx = Number(btn.dataset.idx);
           const targetInv = invoices[idx];
+          if(!targetInv) return;
           requestAdminPin(`Menghapus berkas invoice "${targetInv.periodDesc || targetInv.fileName}" milik konsultan ${fullname || username}`, async ()=>{
-            invoices.splice(idx, 1);
-            await saveStoredInvoices(username, fullname, invoices);
+            await deleteStoredInvoice(username, fullname, targetInv.id, targetInv.periodDesc);
             showToast('Invoice berhasil dihapus oleh Admin.', 'ok');
             openViewUserDocsModal(username, fullname, project, 'invoice');
           });
@@ -6163,16 +6304,14 @@ async function openViewUserDocsModal(username, fullname, project, defaultTab='ko
             const reader = new FileReader();
             reader.onload = async (ev)=>{
               const invObj = {
-                id: Date.now(),
                 periodDesc: desc.trim(),
                 fileName: file.name,
                 fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
                 uploadedAt: new Date().toISOString(),
                 fileData: ev.target.result
               };
-              invoices.unshift(invObj);
-              await saveStoredInvoices(username, fullname, invoices);
-              showToast(`Invoice untuk ${fullname || username} berhasil diunggah.`, 'ok');
+              await saveStoredInvoices(username, fullname, invObj);
+              showToast(`Invoice untuk ${fullname || username} berhasil diunggah ke Cloud.`, 'ok');
               openViewUserDocsModal(username, fullname, project, 'invoice');
             };
             reader.readAsDataURL(file);
