@@ -4138,7 +4138,7 @@ document.querySelectorAll('.approvalTabBtn').forEach(btn=>{
       if(!APPROVAL_HISTORY.length) loadApprovalHistory();
     } else if (isMonitoring) {
       document.getElementById('approvalStageTitle').textContent = 'Monitoring Progress';
-      document.getElementById('approvalStageDesc').textContent = 'Pantau konsultan aktif yang belum menyerahkan timesheet periode ini';
+      document.getElementById('approvalStageDesc').textContent = 'Pantau pengisian konsultan untuk periode: ' + periodLabel(CURRENT_PERIOD) + ' (Ganti periode di kanan atas)';
       loadMonitoringProgress();
     } else {
       document.getElementById('approvalStageTitle').textContent = 'Menunggu Approval';
@@ -4170,50 +4170,70 @@ async function loadMonitoringProgress(){
       return;
     }
 
-    const { data: submissions } = await supabaseClient.from('submissions')
-      .select('consultant, status, submission_id')
-      .eq('period_start', CURRENT_PERIOD.start)
-      .eq('period_end', CURRENT_PERIOD.end);
+    // Ambil semua submission untuk mencari status periode ini atau riwayat terakhir
+    const { data: allSubmissions } = await supabaseClient.from('submissions')
+      .select('consultant, status, submission_id, period_start, period_end, submitted_at')
+      .order('submitted_at', { ascending: false });
 
-    const subMap = {};
-    if (submissions && submissions.length) {
-      submissions.forEach(s => {
-        subMap[s.consultant.toLowerCase()] = s;
+    // Ambil semua data baris timesheet
+    const { data: tsRows } = await supabaseClient.from('timesheet')
+      .select('consultant, date, filled, pid, activity, hours');
+
+    // Map submission per konsultan
+    const currentSubMap = {};
+    const latestSubMap = {};
+    if (allSubmissions && allSubmissions.length) {
+      allSubmissions.forEach(s => {
+        const cKey = (s.consultant || '').trim().toLowerCase();
+        if (!latestSubMap[cKey]) latestSubMap[cKey] = s;
+        if (s.period_start === CURRENT_PERIOD.start && s.period_end === CURRENT_PERIOD.end) {
+          currentSubMap[cKey] = s;
+        }
       });
     }
 
-    const { data: tsRows } = await supabaseClient.from('timesheet')
-      .select('consultant, filled')
-      .gte('date', CURRENT_PERIOD.start)
-      .lte('date', CURRENT_PERIOD.end);
-
+    // Hitung draft timesheet yang jatuh di periode aktif
     const tsCountMap = {};
     if (tsRows && tsRows.length) {
       tsRows.forEach(r => {
-        const cKey = r.consultant.toLowerCase();
-        if (!tsCountMap[cKey]) tsCountMap[cKey] = { total: 0, filled: 0 };
-        tsCountMap[cKey].total++;
-        if (r.filled) tsCountMap[cKey].filled++;
+        const cKey = (r.consultant || '').trim().toLowerCase();
+        const dObj = parseSheetDateKey(r.date);
+        if (dObj) {
+          const iso = toISODate(dObj);
+          if (iso >= CURRENT_PERIOD.start && iso <= CURRENT_PERIOD.end) {
+            if (!tsCountMap[cKey]) tsCountMap[cKey] = { total: 0, filled: 0 };
+            tsCountMap[cKey].total++;
+            const isFilled = r.filled || !!(r.pid || r.activity || r.hours);
+            if (isFilled) tsCountMap[cKey].filled++;
+          }
+        }
       });
     }
 
     tbody.innerHTML = filtered.map(c => {
-      const cKey = c.FullName.toLowerCase();
-      const sub = subMap[cKey];
+      const cKey = (c.FullName || '').trim().toLowerCase();
+      const subCurrent = currentSubMap[cKey];
+      const subLatest = latestSubMap[cKey];
       let statusHTML = '';
       let actionHTML = '';
 
-      if (sub) {
-        statusHTML = statusPillHTML(sub.status);
-        actionHTML = `<span class="text-green-600 text-xs font-semibold">Sudah Submit</span>`;
+      if (subCurrent) {
+        statusHTML = statusPillHTML(subCurrent.status);
+        actionHTML = `<span class="text-green-600 text-xs font-semibold">Sudah Submit Periode Ini</span>`;
       } else {
         const tsInfo = tsCountMap[cKey];
         if (tsInfo && tsInfo.filled > 0) {
           statusHTML = `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:#FEF2E3;color:#92680B;">Draft (${tsInfo.filled} Hari Terisi)</span>`;
-          actionHTML = `<span class="text-amber-500 text-xs font-semibold">Mengisi Draft</span>`;
+          actionHTML = `<span class="text-amber-500 text-xs font-semibold">Sedang Mengisi Draft</span>`;
         } else {
-          statusHTML = `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:#F1F5F9;color:#64748B;">Belum Mengisi</span>`;
-          actionHTML = `<span class="text-red-500 text-xs font-semibold">Belum Mulai</span>`;
+          statusHTML = `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:#F1F5F9;color:#64748B;">Belum Ada Data Periode Ini</span>`;
+          if (subLatest) {
+            const latestStart = subLatest.period_start || '';
+            const latestEnd = subLatest.period_end || '';
+            actionHTML = `<div class="text-[11px] text-slate-500">Terakhir submit: <span class="font-semibold text-slate-700">${latestStart} s/d ${latestEnd}</span> (${statusLabelPlain(subLatest.status)})</div>`;
+          } else {
+            actionHTML = `<span class="text-red-500 text-xs font-semibold">Belum Pernah Submit</span>`;
+          }
         }
       }
 
