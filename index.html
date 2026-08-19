@@ -445,6 +445,7 @@ html,body{overflow-x:hidden;max-width:100%;}
             <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400"></i>
           </button>
           <div class="dd-menu" id="userMenu">
+            <div class="dd-item" id="btnOpenUserProfile"><i data-lucide="user"></i>Profil Saya & Dokumen</div>
             <div class="dd-item" id="btnOpenSignatureModalGlobal"><i data-lucide="pen-tool"></i>Tanda Tangan Saya</div>
             <div class="dd-item" id="btnMasterDataOpen"><i data-lucide="database"></i>Master Data</div>
             <div class="dd-sep"></div>
@@ -882,6 +883,152 @@ html,body{overflow-x:hidden;max-width:100%;}
         </div>
         <div class="modal-footer" id="modalSigFooterDefault">
           <button class="btn btn-outline" id="btnCloseSignatureModal2">Tutup</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL PROFIL SAYA (USER PROFILE, CONTRACT & INVOICES) -->
+    <div id="modalUserProfile" class="modal-overlay" style="display:none;">
+      <div class="modal-box" style="width:680px; max-height:88vh;">
+        <div class="modal-header">
+          <div>
+            <div class="font-bold text-base">Profil Saya & Dokumen</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">Kelola biodata akun, berkas kontrak kerja, dan arsip invoice Anda</div>
+          </div>
+          <button id="btnCloseUserProfile" style="background:none;border:none;cursor:pointer;"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button>
+        </div>
+        <div class="modal-body space-y-4">
+          
+          <!-- TAB NAV DI MODAL PROFIL -->
+          <div class="flex items-center gap-1 mb-2" style="border-bottom:1px solid var(--border);">
+            <button class="userProfTabBtn" data-ptab="biodata" style="padding:8px 14px;font-size:12.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--blue);color:var(--blue);"><i data-lucide="user" class="w-3.5 h-3.5 inline mr-1"></i>Biodata Akun</button>
+            <button class="userProfTabBtn" data-ptab="kontrak" style="padding:8px 14px;font-size:12.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94A3B8;"><i data-lucide="file-text" class="w-3.5 h-3.5 inline mr-1"></i>Dokumen Kontrak</button>
+            <button class="userProfTabBtn" data-ptab="invoice" style="padding:8px 14px;font-size:12.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94A3B8;"><i data-lucide="receipt" class="w-3.5 h-3.5 inline mr-1"></i>Upload Invoice</button>
+          </div>
+
+          <!-- PANEL 1: BIODATA AKUN -->
+          <div id="userProfPanelBiodata" class="space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-[11px] font-semibold text-slate-500 block mb-1">Username (Terkunci)</label>
+                <input id="profUsername" disabled style="background:#F1F5F9;color:#64748B;cursor:not-allowed;">
+              </div>
+              <div>
+                <label class="text-[11px] font-semibold text-slate-500 block mb-1">Role / Hak Akses</label>
+                <input id="profRole" disabled style="background:#F1F5F9;color:#64748B;cursor:not-allowed;">
+              </div>
+              <div>
+                <label class="text-[11px] font-semibold text-slate-500 block mb-1">Project Terdaftar</label>
+                <input id="profProject" disabled style="background:#F1F5F9;color:#64748B;cursor:not-allowed;">
+              </div>
+              <div>
+                <label class="text-[11px] font-semibold text-slate-500 block mb-1">Posisi / Jabatan</label>
+                <input id="profPosition" disabled style="background:#F1F5F9;color:#64748B;cursor:not-allowed;">
+              </div>
+            </div>
+
+            <div class="pt-2" style="border-top:1px dashed var(--border);">
+              <label class="text-[11px] font-semibold text-slate-700 block mb-1">Nama Lengkap (Bisa Diubah) *</label>
+              <input id="profFullName" placeholder="Masukkan nama lengkap Anda..." autocomplete="off">
+            </div>
+
+            <div>
+              <label class="text-[11px] font-semibold text-slate-700 block mb-1">Password Baru (Opsional)
+                <span class="text-slate-400 font-normal text-[10.5px]"> — kosongkan jika tidak ingin mengganti password</span>
+              </label>
+              <input id="profPassword" type="password" placeholder="Ketik kata sandi baru (min. 6 karakter)..." autocomplete="new-password">
+            </div>
+
+            <div id="profSaveMsg" style="font-size:12px;min-height:16px;"></div>
+
+            <div class="flex justify-end pt-2">
+              <button id="btnSaveUserProfile" class="btn btn-blue text-xs"><i data-lucide="save" class="w-3.5 h-3.5"></i>Simpan Perubahan Akun</button>
+            </div>
+          </div>
+
+          <!-- PANEL 2: DOKUMEN KONTRAK (Single Document) -->
+          <div id="userProfPanelKontrak" style="display:none;" class="space-y-3">
+            <div class="text-[12px] text-slate-500">Berkas kontrak kerja resmi Anda dengan PT Integra Solusi Mandiri (Maksimal 1 Berkas Aktif).</div>
+            
+            <!-- REVIEW KONTRAK AKTIF (JIKA SUDAH ADA) -->
+            <div id="profContractActiveBox" style="display:none;background:#F8FAFC;border:1.5px solid #CBD5E1;border-radius:12px;padding:16px;">
+              <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                    <i data-lucide="file-check" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <div class="font-bold text-xs text-slate-800" id="profContractFileName">Kontrak_Kerja.pdf</div>
+                    <div class="text-[10.5px] text-slate-400" id="profContractMeta">Diunggah: - · Ukuran: -</div>
+                  </div>
+                </div>
+                <span class="text-[10.5px] bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full font-semibold">Aktif</span>
+              </div>
+              <div class="flex items-center justify-end gap-2 pt-2" style="border-top:1px dashed #E2E8F0;">
+                <button id="btnViewContract" class="btn btn-outline text-xs" style="height:30px;padding:0 12px;color:var(--blue);border-color:#BFDBFE;"><i data-lucide="external-link" class="w-3.5 h-3.5"></i>Buka / Review Kontrak</button>
+                <button id="btnChangeContract" class="btn btn-gray text-xs" style="height:30px;padding:0 12px;"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i>Ganti Kontrak</button>
+                <button id="btnDeleteContract" class="btn btn-outline text-xs" style="height:30px;padding:0 10px;color:#DC2626;border-color:#FCA5A5;"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i>Hapus</button>
+              </div>
+            </div>
+
+            <!-- FORM UPLOAD KONTRAK (JIKA BELUM ADA ATAU KLIK GANTI) -->
+            <div id="profContractUploadBox" style="background:#FAFBFE;border:1.5px dashed #93C5FD;border-radius:12px;padding:16px;">
+              <div class="text-xs font-bold text-slate-700 mb-1">Unggah Berkas Kontrak Baru</div>
+              <div class="text-[11px] text-slate-400 mb-3">Pilih berkas PDF atau gambar scan kontrak kerja Anda (Maks. 10MB).</div>
+              <input type="file" id="profContractFileInput" accept="application/pdf,image/png,image/jpeg" style="font-size:12px;">
+              <div id="profContractUploadError" style="color:#DC2626;font-size:11.5px;margin-top:6px;"></div>
+              <div class="flex justify-end gap-2 mt-3">
+                <button id="btnCancelChangeContract" class="btn btn-outline text-xs" style="display:none;">Batal</button>
+                <button id="btnSaveContractFile" class="btn btn-blue text-xs"><i data-lucide="upload" class="w-3.5 h-3.5"></i>Upload Kontrak</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 3: DOKUMEN INVOICE PER PERIODE -->
+          <div id="userProfPanelInvoice" style="display:none;" class="space-y-4">
+            <!-- FORM UPLOAD INVOICE -->
+            <div style="background:#FAFBFE;border:1px solid var(--border);border-radius:12px;padding:14px;">
+              <div class="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5"><i data-lucide="plus-circle" class="w-4 h-4 text-blue-600"></i>Upload Invoice Baru</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="text-[11px] font-semibold text-slate-600 block mb-1">Keterangan / Periode Invoice *</label>
+                  <input id="profInvoiceDesc" placeholder="cth: Periode 15 Jul - 14 Agu 2026" autocomplete="off">
+                </div>
+                <div>
+                  <label class="text-[11px] font-semibold text-slate-600 block mb-1">Berkas Invoice (PDF / Gambar) *</label>
+                  <input type="file" id="profInvoiceFileInput" accept="application/pdf,image/png,image/jpeg" style="font-size:12px;">
+                </div>
+              </div>
+              <div id="profInvoiceUploadError" style="color:#DC2626;font-size:11.5px;margin-top:6px;"></div>
+              <div class="flex justify-end mt-3">
+                <button id="btnUploadInvoice" class="btn btn-blue text-xs"><i data-lucide="upload" class="w-3.5 h-3.5"></i>Unggah Dokumen Invoice</button>
+              </div>
+            </div>
+
+            <!-- DAFTAR RIWAYAT INVOICE -->
+            <div>
+              <div class="text-xs font-bold text-slate-800 mb-2">Riwayat Dokumen Invoice Terunggah</div>
+              <div style="overflow-x:auto;">
+                <table class="ts">
+                  <thead>
+                    <tr>
+                      <th>Keterangan / Periode</th>
+                      <th>Nama File</th>
+                      <th>Tanggal Upload</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="profInvoiceTBody">
+                    <tr><td colspan="4" class="text-center text-slate-400 py-6">Belum ada berkas invoice yang diunggah.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" id="btnCloseUserProfile2">Tutup</button>
         </div>
       </div>
     </div>
@@ -4994,6 +5141,324 @@ document.getElementById('btnPublicTabSite').addEventListener('click', () => {
   document.getElementById('btnPublicTabProject').className = 'btn btn-outline text-[12px] whitespace-nowrap';
   document.getElementById('btnPublicTabSite').className = 'btn btn-blue text-[12px] whitespace-nowrap';
   renderPublicMasterTable(true);
+});
+
+// =========================================================
+// USER PROFILE, CONTRACT, AND INVOICE MANAGEMENT
+// =========================================================
+let USER_PROF_ACTIVE_TAB = 'biodata';
+
+function openUserProfileModal(){
+  if(!CURRENT_USER) return;
+  
+  // Fill Biodata Fields
+  document.getElementById('profUsername').value = CURRENT_USER.username || '';
+  document.getElementById('profRole').value = CURRENT_USER.role === 'admin' ? 'Administrator' : (CURRENT_USER.role === 'user' ? 'User (Freelance)' : CURRENT_USER.role);
+  document.getElementById('profProject').value = CURRENT_USER.project || '-';
+  document.getElementById('profPosition').value = CURRENT_USER.position || '-';
+  document.getElementById('profFullName').value = CURRENT_USER.fullname || '';
+  document.getElementById('profPassword').value = '';
+  document.getElementById('profSaveMsg').textContent = '';
+
+  setUserProfileTab('biodata');
+  loadUserContractDoc();
+  loadUserInvoicesList();
+
+  document.getElementById('modalUserProfile').style.display = 'flex';
+  lucide.createIcons();
+}
+
+function closeUserProfileModal(){
+  document.getElementById('modalUserProfile').style.display = 'none';
+}
+
+function setUserProfileTab(tabName){
+  USER_PROF_ACTIVE_TAB = tabName;
+  document.querySelectorAll('.userProfTabBtn').forEach(btn => {
+    const active = btn.dataset.ptab === tabName;
+    btn.style.color = active ? 'var(--blue)' : '#94A3B8';
+    btn.style.borderBottomColor = active ? 'var(--blue)' : 'transparent';
+  });
+
+  document.getElementById('userProfPanelBiodata').style.display = tabName === 'biodata' ? 'block' : 'none';
+  document.getElementById('userProfPanelKontrak').style.display = tabName === 'kontrak' ? 'block' : 'none';
+  document.getElementById('userProfPanelInvoice').style.display = tabName === 'invoice' ? 'block' : 'none';
+}
+
+document.querySelectorAll('.userProfTabBtn').forEach(btn => {
+  btn.addEventListener('click', () => setUserProfileTab(btn.dataset.ptab));
+});
+
+const btnOpenProf = document.getElementById('btnOpenUserProfile');
+if(btnOpenProf) btnOpenProf.addEventListener('click', openUserProfileModal);
+document.getElementById('btnCloseUserProfile').addEventListener('click', closeUserProfileModal);
+document.getElementById('btnCloseUserProfile2').addEventListener('click', closeUserProfileModal);
+
+// 1. Simpan Perubahan Biodata Akun
+document.getElementById('btnSaveUserProfile').addEventListener('click', async () => {
+  const newName = document.getElementById('profFullName').value.trim();
+  const newPass = document.getElementById('profPassword').value.trim();
+  const msgEl = document.getElementById('profSaveMsg');
+
+  if(!newName){
+    msgEl.style.color = '#DC2626';
+    msgEl.textContent = 'Nama lengkap wajib diisi.';
+    return;
+  }
+  if(newPass && newPass.length < 6){
+    msgEl.style.color = '#DC2626';
+    msgEl.textContent = 'Password minimal 6 karakter.';
+    return;
+  }
+
+  const btn = document.getElementById('btnSaveUserProfile');
+  btn.classList.add('btn-loading'); btn.disabled = true;
+  msgEl.textContent = '';
+
+  try {
+    const updateData = { fullname: newName };
+    if(newPass) updateData.password = newPass;
+
+    const { error } = await supabaseClient.from('users').update(updateData).eq('username', CURRENT_USER.username);
+    if(error) throw error;
+
+    // Update Session
+    CURRENT_USER.fullname = newName;
+    if(newPass) CURRENT_USER.password = newPass;
+    setSession(CURRENT_USER);
+
+    // Update UI elements
+    const sidebarName = document.getElementById('sidebarName');
+    if(sidebarName) sidebarName.textContent = newName;
+    const topbarUserName = document.getElementById('topbarUserName');
+    if(topbarUserName) topbarUserName.textContent = newName;
+    const infoConsultantName = document.getElementById('infoConsultantName');
+    if(infoConsultantName) infoConsultantName.textContent = newName;
+    CONSULTANT_NAME = newName;
+
+    msgEl.style.color = '#16A34A';
+    msgEl.textContent = '✓ Perubahan akun berhasil disimpan!';
+    showToast('Profil Anda berhasil diperbarui.','ok');
+    document.getElementById('profPassword').value = '';
+  } catch(e) {
+    msgEl.style.color = '#DC2626';
+    msgEl.textContent = 'Gagal menyimpan profil: ' + (e.message || 'Terjadi kesalahan');
+  }
+  btn.classList.remove('btn-loading'); btn.disabled = false;
+});
+
+// 2. Dokumen Kontrak Kerja (Single Document)
+function getContractStorageKey(){
+  return `stms_contract_${CURRENT_USER ? CURRENT_USER.username : 'user'}`;
+}
+
+function loadUserContractDoc(){
+  const key = getContractStorageKey();
+  let contract = null;
+  try { contract = JSON.parse(localStorage.getItem(key) || 'null'); } catch(e){}
+
+  const activeBox = document.getElementById('profContractActiveBox');
+  const uploadBox = document.getElementById('profContractUploadBox');
+  const cancelBtn = document.getElementById('btnCancelChangeContract');
+  document.getElementById('profContractUploadError').textContent = '';
+  document.getElementById('profContractFileInput').value = '';
+
+  if(contract && contract.fileData){
+    document.getElementById('profContractFileName').textContent = contract.fileName || 'Dokumen_Kontrak.pdf';
+    document.getElementById('profContractMeta').textContent = `Diunggah: ${formatTimestampShort(contract.uploadedAt)} · Ukuran: ${contract.fileSize || '-'}`;
+    activeBox.style.display = 'block';
+    uploadBox.style.display = 'none';
+    cancelBtn.style.display = 'none';
+  } else {
+    activeBox.style.display = 'none';
+    uploadBox.style.display = 'block';
+    cancelBtn.style.display = 'none';
+  }
+}
+
+document.getElementById('btnChangeContract').addEventListener('click', () => {
+  document.getElementById('profContractActiveBox').style.display = 'none';
+  document.getElementById('profContractUploadBox').style.display = 'block';
+  document.getElementById('btnCancelChangeContract').style.display = 'inline-flex';
+});
+
+document.getElementById('btnCancelChangeContract').addEventListener('click', () => {
+  loadUserContractDoc();
+});
+
+document.getElementById('btnViewContract').addEventListener('click', () => {
+  const key = getContractStorageKey();
+  let contract = null;
+  try { contract = JSON.parse(localStorage.getItem(key) || 'null'); } catch(e){}
+  if(!contract || !contract.fileData){
+    alert('Dokumen kontrak tidak ditemukan.');
+    return;
+  }
+  const win = window.open();
+  if(win){
+    if(contract.fileData.startsWith('data:application/pdf')){
+      win.document.write(`<iframe src="${contract.fileData}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`);
+    } else {
+      win.document.write(`<img src="${contract.fileData}" style="max-width:100%; display:block; margin:20px auto;">`);
+    }
+  }
+});
+
+document.getElementById('btnDeleteContract').addEventListener('click', () => {
+  if(!confirm('Apakah Anda yakin ingin menghapus berkas kontrak kerja ini?')) return;
+  localStorage.removeItem(getContractStorageKey());
+  showToast('Berkas kontrak berhasil dihapus.','ok');
+  loadUserContractDoc();
+});
+
+document.getElementById('btnSaveContractFile').addEventListener('click', () => {
+  const fileInput = document.getElementById('profContractFileInput');
+  const errEl = document.getElementById('profContractUploadError');
+  errEl.textContent = '';
+
+  const file = fileInput.files && fileInput.files[0];
+  if(!file){
+    errEl.textContent = 'Silakan pilih berkas PDF atau gambar kontrak terlebih dahulu.';
+    return;
+  }
+
+  if(file.size > 12 * 1024 * 1024){
+    errEl.textContent = 'Ukuran berkas maksimal 12MB.';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const fileData = e.target.result;
+    const contractObj = {
+      fileName: file.name,
+      fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+      uploadedAt: new Date().toISOString(),
+      fileData: fileData
+    };
+    try {
+      localStorage.setItem(getContractStorageKey(), JSON.stringify(contractObj));
+      showToast('Berkas kontrak berhasil disimpan.','ok');
+      loadUserContractDoc();
+    } catch(err){
+      errEl.textContent = 'Ukuran file terlalu besar untuk penyimpanan lokal. Harap kompres file PDF/gambar Anda.';
+    }
+  };
+  reader.onerror = () => { errEl.textContent = 'Gagal membaca berkas file.'; };
+  reader.readAsDataURL(file);
+});
+
+// 3. Dokumen Invoice per Periode
+function getInvoicesStorageKey(){
+  return `stms_invoices_${CURRENT_USER ? CURRENT_USER.username : 'user'}`;
+}
+
+function loadUserInvoicesList(){
+  const key = getInvoicesStorageKey();
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e){}
+
+  const tbody = document.getElementById('profInvoiceTBody');
+  document.getElementById('profInvoiceDesc').value = '';
+  document.getElementById('profInvoiceFileInput').value = '';
+  document.getElementById('profInvoiceUploadError').textContent = '';
+
+  if(!list.length){
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-slate-400 py-6">Belum ada berkas invoice yang diunggah.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map((inv, idx) => {
+    return `<tr>
+      <td style="font-weight:600;"><i data-lucide="receipt" class="w-3.5 h-3.5 inline mr-1 text-slate-400"></i>${inv.periodDesc || '-'}</td>
+      <td style="font-size:12px;color:#475569;">${inv.fileName || '-'} <span class="text-[10px] text-slate-400">(${inv.fileSize || ''})</span></td>
+      <td style="font-size:11px;color:#64748B;">${formatTimestampShort(inv.uploadedAt)}</td>
+      <td>
+        <div class="flex items-center gap-1.5">
+          <button class="btn btn-outline text-[11px] btnViewInvoiceItem" data-idx="${idx}" style="padding:3px 8px;height:26px;"><i data-lucide="external-link" class="w-3 h-3 text-blue-600"></i>Buka</button>
+          <button class="btn btn-outline text-[11px] btnDeleteInvoiceItem" data-idx="${idx}" style="padding:3px 8px;height:26px;color:#DC2626;border-color:#FCA5A5;"><i data-lucide="trash-2" class="w-3 h-3"></i>Hapus</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  lucide.createIcons();
+
+  tbody.querySelectorAll('.btnViewInvoiceItem').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.idx);
+      const inv = list[idx];
+      if(!inv || !inv.fileData) return;
+      const win = window.open();
+      if(win){
+        if(inv.fileData.startsWith('data:application/pdf')){
+          win.document.write(`<iframe src="${inv.fileData}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`);
+        } else {
+          win.document.write(`<img src="${inv.fileData}" style="max-width:100%; display:block; margin:20px auto;">`);
+        }
+      }
+    });
+  });
+
+  tbody.querySelectorAll('.btnDeleteInvoiceItem').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.idx);
+      if(!confirm('Apakah Anda yakin ingin menghapus invoice ini?')) return;
+      list.splice(idx, 1);
+      localStorage.setItem(key, JSON.stringify(list));
+      showToast('Invoice berhasil dihapus.','ok');
+      loadUserInvoicesList();
+    });
+  });
+}
+
+document.getElementById('btnUploadInvoice').addEventListener('click', () => {
+  const desc = document.getElementById('profInvoiceDesc').value.trim();
+  const fileInput = document.getElementById('profInvoiceFileInput');
+  const errEl = document.getElementById('profInvoiceUploadError');
+  errEl.textContent = '';
+
+  if(!desc){
+    errEl.textContent = 'Keterangan atau periode invoice wajib diisi (cth: Periode 15 Jul - 14 Agu 2026).';
+    return;
+  }
+
+  const file = fileInput.files && fileInput.files[0];
+  if(!file){
+    errEl.textContent = 'Silakan pilih berkas PDF atau gambar invoice.';
+    return;
+  }
+
+  if(file.size > 12 * 1024 * 1024){
+    errEl.textContent = 'Ukuran berkas maksimal 12MB.';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const fileData = e.target.result;
+    const invObj = {
+      id: Date.now(),
+      periodDesc: desc,
+      fileName: file.name,
+      fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+      uploadedAt: new Date().toISOString(),
+      fileData: fileData
+    };
+    const key = getInvoicesStorageKey();
+    let list = [];
+    try { list = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e){}
+    list.unshift(invObj); // newest on top
+    try {
+      localStorage.setItem(key, JSON.stringify(list));
+      showToast('Invoice berhasil diunggah.','ok');
+      loadUserInvoicesList();
+    } catch(err){
+      errEl.textContent = 'Ukuran file terlalu besar untuk penyimpanan. Harap kompres file PDF/gambar invoice Anda.';
+    }
+  };
+  reader.onerror = () => { errEl.textContent = 'Gagal membaca berkas file.'; };
+  reader.readAsDataURL(file);
 });
 
 window.addEventListener('hashchange', checkHashRoute);
