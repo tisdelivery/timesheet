@@ -740,6 +740,24 @@ html,body{overflow-x:hidden;max-width:100%;}
         </div>
       </div>
 
+      <!-- CONTRACT EXPIRY WARNING BANNER -->
+      <div id="contractExpiryBanner" class="card mb-4 p-4 border-l-4 border-amber-500 bg-amber-50" style="display:none;">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
+              <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <div class="font-bold text-xs text-amber-900" id="contractExpiryBannerTitle">Peringatan Masa Kontrak Konsultan</div>
+              <div class="text-[11.5px] text-amber-700 mt-0.5" id="contractExpiryBannerDesc">Terdapat konsultan yang masa kontrak kerjanya akan segera berakhir (< 30 hari).</div>
+            </div>
+          </div>
+          <button id="btnViewExpiringContracts" class="btn btn-outline text-xs" style="height:30px;padding:0 12px;background:#fff;border-color:#FCD34D;color:#B45309;">
+            <i data-lucide="eye" class="w-3.5 h-3.5"></i>Lihat Monitoring Kontrak
+          </button>
+        </div>
+      </div>
+
       <div class="card p-5">
         <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
           <div>
@@ -756,7 +774,7 @@ html,body{overflow-x:hidden;max-width:100%;}
         <div class="flex items-center gap-1 mb-4" style="border-bottom:1px solid var(--border);">
           <button class="approvalTabBtn" data-tab="pending" style="padding:8px 14px;font-size:12.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--blue);color:var(--blue);">Menunggu Approval<span id="approvalPendingCount" style="display:none;margin-left:6px;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;">0</span></button>
           <button class="approvalTabBtn" data-tab="history" style="padding:8px 14px;font-size:12.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94A3B8;">Riwayat</button>
-          <button class="approvalTabBtn" data-tab="monitoring" style="padding:8px 14px;font-size:12.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94A3B8;">Monitoring Progress</button>
+          <button class="approvalTabBtn" data-tab="monitoring" style="padding:8px 14px;font-size:12.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94A3B8;">Monitoring Progress & Kontrak</button>
         </div>
 
         <div id="approvalPendingPanel" style="overflow-x:auto;">
@@ -775,7 +793,7 @@ html,body{overflow-x:hidden;max-width:100%;}
 
         <div id="approvalMonitoringPanel" style="overflow-x:auto;display:none;">
           <table class="ts"><thead><tr>
-            <th>Consultant</th><th>Project / Posisi</th><th>Status Pengisian</th><th>Aksi / Detail</th>
+            <th>Consultant</th><th>Project / Posisi</th><th>Status Pengisian</th><th>Masa Kontrak</th><th>Aksi / Dokumen</th>
           </tr></thead><tbody id="approvalMonitoringTBody"></tbody></table>
           <div id="approvalMonitoringEmpty" class="hidden text-center py-8 text-slate-400 text-sm">Semua consultant sudah mengirimkan timesheet.</div>
         </div>
@@ -793,6 +811,15 @@ html,body{overflow-x:hidden;max-width:100%;}
           <button id="btnCloseApprovalDetail" style="background:none;border:none;cursor:pointer;"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button>
         </div>
         <div class="modal-body">
+          <!-- ATTACHED DOCUMENTS TOOLBAR FOR REVIEWER -->
+          <div class="flex items-center justify-between gap-2 p-2.5 mb-3 bg-slate-50 border border-slate-200 rounded-lg text-xs flex-wrap">
+            <span class="font-semibold text-slate-700 flex items-center gap-1.5"><i data-lucide="paperclip" class="w-4 h-4 text-blue-600"></i>Dokumen Terlampir Konsultan:</span>
+            <div class="flex items-center gap-2">
+              <button type="button" class="btn btn-outline text-xs" id="btnReviewConsultantContract" style="height:28px;padding:0 10px;color:var(--blue);border-color:#BFDBFE;"><i data-lucide="file-text" class="w-3.5 h-3.5"></i>Review Kontrak Kerja</button>
+              <button type="button" class="btn btn-outline text-xs" id="btnReviewConsultantInvoices" style="height:28px;padding:0 10px;color:#0F766E;border-color:#99F6E4;"><i data-lucide="receipt" class="w-3.5 h-3.5"></i>Review Dokumen Invoice</button>
+            </div>
+          </div>
+
           <div id="approvalDetailStatusPill" style="display:none;margin-bottom:10px;"></div>
           <div style="overflow-x:auto;">
             <table class="ts"><thead><tr>
@@ -811,6 +838,57 @@ html,body{overflow-x:hidden;max-width:100%;}
           <button class="btn btn-outline" id="btnPrintApprovalDetail" style="color:#DC2626;"><i data-lucide="file-text" class="w-3.5 h-3.5"></i>Export PDF</button>
           <button class="btn text-white" style="background:var(--red);" id="btnRejectSubmission"><i data-lucide="x-circle" class="w-3.5 h-3.5"></i>Reject</button>
           <button class="btn btn-green" id="btnApproveSubmission"><i data-lucide="check-circle" class="w-3.5 h-3.5"></i>Approve</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DOKUMEN & KONTRAK KONSULTAN (UNTUK ADMIN / PM / DEPT / DIV) -->
+    <div id="modalViewUserDocs" class="modal-overlay" style="display:none;">
+      <div class="modal-box" style="width:640px; max-height:85vh;">
+        <div class="modal-header">
+          <div>
+            <div class="font-bold text-base" id="viewDocsTitle">Dokumen & Invoice Konsultan</div>
+            <div class="text-[11px] text-slate-400 mt-0.5" id="viewDocsSub">Nama: - · Project: -</div>
+          </div>
+          <button id="btnCloseViewDocs" style="background:none;border:none;cursor:pointer;"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button>
+        </div>
+        <div class="modal-body space-y-4">
+          
+          <!-- TAB NAV -->
+          <div class="flex items-center gap-1 mb-2" style="border-bottom:1px solid var(--border);">
+            <button class="viewDocsTabBtn" data-dtab="kontrak" style="padding:8px 14px;font-size:12.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--blue);color:var(--blue);"><i data-lucide="file-text" class="w-3.5 h-3.5 inline mr-1"></i>Dokumen Kontrak</button>
+            <button class="viewDocsTabBtn" data-dtab="invoice" style="padding:8px 14px;font-size:12.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94A3B8;"><i data-lucide="receipt" class="w-3.5 h-3.5 inline mr-1"></i>Dokumen Invoice</button>
+          </div>
+
+          <!-- PANEL 1: KONTRAK -->
+          <div id="viewDocsPanelKontrak">
+            <div id="viewDocsContractContent">
+              <!-- Dynamic content: contract file info or empty state -->
+            </div>
+          </div>
+
+          <!-- PANEL 2: INVOICES -->
+          <div id="viewDocsPanelInvoice" style="display:none;">
+            <div style="overflow-x:auto;">
+              <table class="ts">
+                <thead>
+                  <tr>
+                    <th>Keterangan / Periode</th>
+                    <th>Nama File</th>
+                    <th>Tanggal Upload</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="viewDocsInvoiceTBody">
+                  <tr><td colspan="4" class="text-center text-slate-400 py-6">Tidak ada berkas invoice.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" id="btnCloseViewDocs2">Tutup</button>
         </div>
       </div>
     </div>
@@ -3972,7 +4050,13 @@ function renderUserTable(){
       : `<span class="badge-status-nonaktif">Non-aktif</span>`;
     const roleBadge = (u.Role||'').toLowerCase()==='admin'
       ? `<span class="badge-role-admin">Admin</span>`
-      : `<span class="badge-role-user">User</span>`;
+      : `<span class="badge-role-user">${u.Role||'User'}</span>`;
+
+    const exp = getContractExpiryStatus(u.EndKontrak);
+    const expBadge = (u.Role||'').toLowerCase()==='user' 
+      ? `<div class="mt-1"><span class="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full border ${exp.badgeClass}">${exp.label}</span></div>` 
+      : '';
+
     tr.innerHTML=`
       <td>${i+1}</td>
       <td style="font-family:monospace;font-size:12px;font-weight:600;">${u.Username||'-'}</td>
@@ -3982,19 +4066,27 @@ function renderUserTable(){
       <td style="font-size:11.5px;">${u.HomeBase||'-'}</td>
       <td style="font-size:11.5px;">${u.NoHP||'-'}</td>
       <td style="font-size:11px;white-space:nowrap;">${u.StartKontrak||'-'}</td>
-      <td style="font-size:11px;white-space:nowrap;">${u.EndKontrak||'-'}</td>
+      <td style="font-size:11px;white-space:nowrap;">${u.EndKontrak||'-'}${expBadge}</td>
       <td>${roleBadge}</td>
       <td>${statusBadge}</td>
-      <td><div class="flex gap-1">
+      <td><div class="flex items-center gap-1 flex-wrap">
         <button class="btn btn-outline text-[10px] editUserBtn" data-idx="${i}" style="padding:3px 8px;">Edit</button>
+        <button class="btn btn-outline text-[10px] viewUserDocsAdminBtn" data-idx="${i}" style="padding:3px 8px;color:var(--blue);border-color:#BFDBFE;"><i data-lucide="paperclip" class="w-3 h-3 inline"></i>Dokumen</button>
         <button class="btn text-[10px] toggleStatusBtn" data-idx="${i}" style="padding:3px 8px;background:${u.Status==='Aktif'?'#FEE2E2;color:#DC2626':'#DCFCE7;color:#15803D'}">
           ${u.Status==='Aktif'?'Nonaktifkan':'Aktifkan'}
         </button>
       </div></td>`;
     tbody.appendChild(tr);
   });
+  lucide.createIcons();
   document.querySelectorAll('.editUserBtn').forEach(btn=>{
     btn.addEventListener('click',()=>openUserModal(+btn.dataset.idx));
+  });
+  document.querySelectorAll('.viewUserDocsAdminBtn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const u = userList[+btn.dataset.idx];
+      if(u) openViewUserDocsModal(u.Username, u.FullName, u.Project, 'kontrak');
+    });
   });
   document.querySelectorAll('.toggleStatusBtn').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
@@ -4368,7 +4460,7 @@ async function loadMonitoringProgress(){
   if(!APPS_SCRIPT_URL || !CURRENT_USER || !APPROVER_ROLES.includes(CURRENT_USER.role)) return;
   const tbody = document.getElementById('approvalMonitoringTBody');
   const empty = document.getElementById('approvalMonitoringEmpty');
-  tbody.innerHTML = `<tr><td colspan="4" class="text-center text-slate-400 py-6">Memuat progress...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="5" class="text-center text-slate-400 py-6">Memuat progress & data kontrak...</td></tr>`;
   empty.classList.add('hidden');
   try {
     const users = await fetch(`${APPS_SCRIPT_URL}?action=getUsers`).then(r=>r.json());
@@ -4379,6 +4471,9 @@ async function loadMonitoringProgress(){
     if (CURRENT_USER.role === 'approver_pm' && pmProject) {
       filtered = consultants.filter(c => c.Project === pmProject);
     }
+
+    // Periksa notifikasi masa kontrak
+    checkContractExpirations(consultants);
 
     if (!filtered.length) {
       tbody.innerHTML = '';
@@ -4435,35 +4530,53 @@ async function loadMonitoringProgress(){
 
       if (subCurrent) {
         statusHTML = statusPillHTML(subCurrent.status);
-        actionHTML = `<span class="text-green-600 text-xs font-semibold">Sudah Submit Periode Ini</span>`;
+        actionHTML = `<span class="text-green-600 text-xs font-semibold">Sudah Submit</span>`;
       } else {
         const tsInfo = tsCountMap[cKey];
         if (tsInfo && tsInfo.filled > 0) {
-          statusHTML = `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:#FEF2E3;color:#92680B;">Draft (${tsInfo.filled} Hari Terisi)</span>`;
-          actionHTML = `<span class="text-amber-500 text-xs font-semibold">Sedang Mengisi Draft</span>`;
+          statusHTML = `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:#FEF2E3;color:#92680B;">Draft (${tsInfo.filled} Hari)</span>`;
+          actionHTML = `<span class="text-amber-500 text-xs font-semibold">Sedang Mengisi</span>`;
         } else {
-          statusHTML = `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:#F1F5F9;color:#64748B;">Belum Ada Data Periode Ini</span>`;
+          statusHTML = `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:#F1F5F9;color:#64748B;">Belum Ada Data</span>`;
           if (subLatest) {
             const latestStart = subLatest.period_start || '';
             const latestEnd = subLatest.period_end || '';
-            actionHTML = `<div class="text-[11px] text-slate-500">Terakhir submit: <span class="font-semibold text-slate-700">${latestStart} s/d ${latestEnd}</span> (${statusLabelPlain(subLatest.status)})</div>`;
+            actionHTML = `<div class="text-[10.5px] text-slate-500">Terakhir: <span class="font-semibold text-slate-700">${latestStart} s/d ${latestEnd}</span></div>`;
           } else {
-            actionHTML = `<span class="text-red-500 text-xs font-semibold">Belum Pernah Submit</span>`;
+            actionHTML = `<span class="text-red-500 text-xs font-semibold">Belum Pernah</span>`;
           }
         }
       }
+
+      // Status Masa Kontrak
+      const exp = getContractExpiryStatus(c.EndKontrak);
+      const expBadge = `<span class="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full border ${exp.badgeClass}">${exp.label}</span>`;
 
       return `<tr>
         <td style="font-weight:600;">${c.FullName}</td>
         <td><div class="text-[12.5px] font-semibold">${c.Project || '-'}</div><div class="text-[10px] text-slate-400">${c.Position || '-'}</div></td>
         <td>${statusHTML}</td>
-        <td>${actionHTML}</td>
+        <td>${expBadge}</td>
+        <td>
+          <div class="flex items-center gap-2">
+            ${actionHTML}
+            <button class="btn btn-outline text-[11px] btnViewDocsRow" data-username="${c.Username||c.FullName}" data-fullname="${c.FullName}" data-project="${c.Project||'-'}" style="padding:2px 8px;height:24px;color:var(--blue);border-color:#BFDBFE;"><i data-lucide="paperclip" class="w-3 h-3 inline"></i>Dokumen</button>
+          </div>
+        </td>
       </tr>`;
     }).join('');
 
+    lucide.createIcons();
+
+    tbody.querySelectorAll('.btnViewDocsRow').forEach(btn => {
+      btn.addEventListener('click', () => {
+        openViewUserDocsModal(btn.dataset.username, btn.dataset.fullname, btn.dataset.project, 'kontrak');
+      });
+    });
+
   } catch(e) {
     console.error(e);
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-red-400 py-6">Gagal memuat monitoring progress.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-red-400 py-6">Gagal memuat monitoring progress.</td></tr>`;
   }
 }
 
@@ -5460,6 +5573,197 @@ document.getElementById('btnUploadInvoice').addEventListener('click', () => {
   reader.onerror = () => { errEl.textContent = 'Gagal membaca berkas file.'; };
   reader.readAsDataURL(file);
 });
+
+// =========================================================
+// CONTRACT EXPIRY & REVIEWER USER DOCS MODAL (ADMIN/PM/DEPT/DIV)
+// =========================================================
+function getContractExpiryStatus(endDateStr) {
+  if (!endDateStr || endDateStr === '-') return { status: 'none', label: 'Belum Diatur', daysLeft: null, badgeClass: 'bg-slate-100 text-slate-500 border-slate-200' };
+  const end = new Date(endDateStr);
+  if (isNaN(end.getTime())) return { status: 'none', label: 'Format Salah', daysLeft: null, badgeClass: 'bg-slate-100 text-slate-500 border-slate-200' };
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  
+  const diffTime = end.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays < 0) {
+    return { status: 'expired', label: `🚨 Expired (${Math.abs(diffDays)} hari lalu)`, daysLeft: diffDays, badgeClass: 'bg-red-100 text-red-800 border-red-300 font-semibold' };
+  } else if (diffDays <= 7) {
+    return { status: 'critical', label: `🚨 Kritis (${diffDays} hari lagi)`, daysLeft: diffDays, badgeClass: 'bg-red-100 text-red-700 border-red-300 font-bold animate-pulse' };
+  } else if (diffDays <= 30) {
+    return { status: 'warning', label: `⚠️ Segera Habis (${diffDays} hari lagi)`, daysLeft: diffDays, badgeClass: 'bg-amber-100 text-amber-800 border-amber-300 font-semibold' };
+  } else {
+    return { status: 'safe', label: `✅ Aktif (${diffDays} hari lagi)`, daysLeft: diffDays, badgeClass: 'bg-green-50 text-green-700 border-green-200' };
+  }
+}
+
+function checkContractExpirations(consultants){
+  const banner = document.getElementById('contractExpiryBanner');
+  if(!banner || !Array.isArray(consultants)) return;
+
+  const expiring = consultants.filter(c => {
+    const exp = getContractExpiryStatus(c.EndKontrak);
+    return exp.status === 'critical' || exp.status === 'warning' || exp.status === 'expired';
+  });
+
+  if(expiring.length > 0){
+    banner.style.display = 'block';
+    document.getElementById('contractExpiryBannerTitle').textContent = `Peringatan: ${expiring.length} Konsultan Memiliki Kontrak Yang Segera Habis / Expired`;
+    const names = expiring.map(c => `${c.FullName} (${getContractExpiryStatus(c.EndKontrak).label})`).join(', ');
+    document.getElementById('contractExpiryBannerDesc').textContent = `Daftar: ${names}. Harap segera proses perpanjangan atau koordinasi.`;
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+const btnExpContracts = document.getElementById('btnViewExpiringContracts');
+if(btnExpContracts){
+  btnExpContracts.addEventListener('click', ()=>{
+    const monTab = document.querySelector('.approvalTabBtn[data-tab="monitoring"]');
+    if(monTab) monTab.click();
+  });
+}
+
+let VIEW_DOCS_ACTIVE_TAB = 'kontrak';
+let CURRENT_VIEW_DOCS_USER = null;
+
+function setViewDocsTab(tabName){
+  VIEW_DOCS_ACTIVE_TAB = tabName;
+  document.querySelectorAll('.viewDocsTabBtn').forEach(btn => {
+    const active = btn.dataset.dtab === tabName;
+    btn.style.color = active ? 'var(--blue)' : '#94A3B8';
+    btn.style.borderBottomColor = active ? 'var(--blue)' : 'transparent';
+  });
+
+  document.getElementById('viewDocsPanelKontrak').style.display = tabName === 'kontrak' ? 'block' : 'none';
+  document.getElementById('viewDocsPanelInvoice').style.display = tabName === 'invoice' ? 'block' : 'none';
+}
+
+document.querySelectorAll('.viewDocsTabBtn').forEach(btn => {
+  btn.addEventListener('click', () => setViewDocsTab(btn.dataset.dtab));
+});
+
+function closeViewDocsModal(){
+  document.getElementById('modalViewUserDocs').style.display = 'none';
+  CURRENT_VIEW_DOCS_USER = null;
+}
+document.getElementById('btnCloseViewDocs').addEventListener('click', closeViewDocsModal);
+document.getElementById('btnCloseViewDocs2').addEventListener('click', closeViewDocsModal);
+
+function openViewUserDocsModal(username, fullname, project, defaultTab='kontrak'){
+  CURRENT_VIEW_DOCS_USER = { username, fullname, project };
+  document.getElementById('viewDocsTitle').textContent = `Dokumen & Invoice Konsultan: ${fullname || username}`;
+  document.getElementById('viewDocsSub').textContent = `Project: ${project || '-'} · Username: ${username || '-'}`;
+
+  // 1. Render Kontrak
+  const contractContent = document.getElementById('viewDocsContractContent');
+  let contract = null;
+  try {
+    contract = JSON.parse(localStorage.getItem(`stms_contract_${username}`) || 'null');
+    if(!contract && fullname) contract = JSON.parse(localStorage.getItem(`stms_contract_${fullname}`) || 'null');
+  } catch(e){}
+
+  if(contract && contract.fileData){
+    contractContent.innerHTML = `
+      <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+            <i data-lucide="file-check" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="font-bold text-xs text-slate-800">${contract.fileName || 'Dokumen_Kontrak.pdf'}</div>
+            <div class="text-[10.5px] text-slate-400">Diunggah: ${formatTimestampShort(contract.uploadedAt)} · Ukuran: ${contract.fileSize || '-'}</div>
+          </div>
+        </div>
+        <span class="text-[10.5px] bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full font-semibold">Tersimpan</span>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2" style="border-top:1px dashed #E2E8F0;">
+        <button class="btn btn-blue text-xs btnOpenContractViewWin" style="height:30px;padding:0 14px;"><i data-lucide="external-link" class="w-3.5 h-3.5"></i>Buka / Review Berkas Kontrak</button>
+      </div>
+    `;
+    contractContent.querySelector('.btnOpenContractViewWin').addEventListener('click', ()=>{
+      const win = window.open();
+      if(win){
+        if(contract.fileData.startsWith('data:application/pdf')){
+          win.document.write(`<iframe src="${contract.fileData}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`);
+        } else {
+          win.document.write(`<img src="${contract.fileData}" style="max-width:100%; display:block; margin:20px auto;">`);
+        }
+      }
+    });
+  } else {
+    contractContent.innerHTML = `
+      <div class="text-center py-8 text-slate-400">
+        <i data-lucide="file-x-2" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
+        <div class="text-xs font-semibold text-slate-600">Belum Ada Dokumen Kontrak</div>
+        <div class="text-[11px] text-slate-400 mt-0.5">Konsultan ${fullname || username} belum mengunggah berkas kontrak kerja.</div>
+      </div>
+    `;
+  }
+
+  // 2. Render Invoices
+  let invoices = [];
+  try {
+    invoices = JSON.parse(localStorage.getItem(`stms_invoices_${username}`) || '[]');
+    if(!invoices.length && fullname) invoices = JSON.parse(localStorage.getItem(`stms_invoices_${fullname}`) || '[]');
+  } catch(e){}
+
+  const invTbody = document.getElementById('viewDocsInvoiceTBody');
+  if(!invoices.length){
+    invTbody.innerHTML = `<tr><td colspan="4" class="text-center text-slate-400 py-6">Konsultan ini belum mengunggah berkas invoice.</td></tr>`;
+  } else {
+    invTbody.innerHTML = invoices.map((inv, idx) => `
+      <tr>
+        <td style="font-weight:600;"><i data-lucide="receipt" class="w-3.5 h-3.5 inline mr-1 text-slate-400"></i>${inv.periodDesc || '-'}</td>
+        <td style="font-size:12px;color:#475569;">${inv.fileName || '-'} <span class="text-[10px] text-slate-400">(${inv.fileSize || ''})</span></td>
+        <td style="font-size:11px;color:#64748B;">${formatTimestampShort(inv.uploadedAt)}</td>
+        <td>
+          <button class="btn btn-outline text-[11px] btnViewSingleInvoiceReview" data-idx="${idx}" style="padding:3px 10px;height:26px;color:var(--blue);border-color:#BFDBFE;">
+            <i data-lucide="external-link" class="w-3 h-3"></i>Buka
+          </button>
+        </td>
+      </tr>
+    `).join('');
+
+    invTbody.querySelectorAll('.btnViewSingleInvoiceReview').forEach(btn => {
+      btn.addEventListener('click', ()=>{
+        const inv = invoices[Number(btn.dataset.idx)];
+        if(!inv || !inv.fileData) return;
+        const win = window.open();
+        if(win){
+          if(inv.fileData.startsWith('data:application/pdf')){
+            win.document.write(`<iframe src="${inv.fileData}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`);
+          } else {
+            win.document.write(`<img src="${inv.fileData}" style="max-width:100%; display:block; margin:20px auto;">`);
+          }
+        }
+      });
+    });
+  }
+
+  setViewDocsTab(defaultTab);
+  document.getElementById('modalViewUserDocs').style.display = 'flex';
+  lucide.createIcons();
+}
+
+const btnRevContract = document.getElementById('btnReviewConsultantContract');
+if(btnRevContract){
+  btnRevContract.addEventListener('click', ()=>{
+    if(!CURRENT_APPROVAL_DETAIL) return;
+    openViewUserDocsModal(CURRENT_APPROVAL_DETAIL.Consultant, CURRENT_APPROVAL_DETAIL.Consultant, CURRENT_APPROVAL_DETAIL.Project, 'kontrak');
+  });
+}
+
+const btnRevInvoices = document.getElementById('btnReviewConsultantInvoices');
+if(btnRevInvoices){
+  btnRevInvoices.addEventListener('click', ()=>{
+    if(!CURRENT_APPROVAL_DETAIL) return;
+    openViewUserDocsModal(CURRENT_APPROVAL_DETAIL.Consultant, CURRENT_APPROVAL_DETAIL.Consultant, CURRENT_APPROVAL_DETAIL.Project, 'invoice');
+  });
+}
 
 window.addEventListener('hashchange', checkHashRoute);
 // Jalankan langsung saat page load jika ada hash di URL
