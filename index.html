@@ -4104,6 +4104,11 @@ function renderUserTable(){
       ? `<span class="badge-role-admin">Admin</span>`
       : `<span class="badge-role-user">${u.Role||'User'}</span>`;
 
+    const exp = getContractExpiryStatus(u.EndKontrak);
+    const expBadge = (u.Role||'').toLowerCase()==='user' 
+      ? `<div class="mt-1"><span class="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full border ${exp.badgeClass}">${exp.label}</span></div>` 
+      : '';
+
     const hasSig = u.HasSignature || !!u.Signature;
     const sigBadge = (u.Role||'').toLowerCase()==='admin'
       ? `<span class="text-slate-400 text-[11px]">-</span>`
@@ -5498,21 +5503,195 @@ document.getElementById('btnSaveUserProfile').addEventListener('click', async ()
   btn.classList.remove('btn-loading'); btn.disabled = false;
 });
 
-// 2. Dokumen Kontrak Kerja (Single Document)
-function getContractStorageKey(){
-  return `stms_contract_${CURRENT_USER ? CURRENT_USER.username : 'user'}`;
+// =========================================================
+// HYBRID DOCUMENT STORAGE ENGINE (INDEXEDDB + LOCALSTORAGE)
+// =========================================================
+const STMS_STORAGE = {
+  db: null,
+  init: function() {
+    return new Promise((resolve) => {
+      try {
+        const req = indexedDB.open('STMS_DOCS_DB', 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('docs')) {
+            db.createObjectStore('docs');
+          }
+        };
+        req.onsuccess = (e) => {
+          this.db = e.target.result;
+          resolve(this.db);
+        };
+        req.onerror = () => resolve(null);
+      } catch (e) {
+        resolve(null);
+      }
+    });
+  },
+  setItem: async function(key, val) {
+    try {
+      if (!this.db) await this.init();
+      if (this.db) {
+        await new Promise((resolve, reject) => {
+          const tx = this.db.transaction('docs', 'readwrite');
+          const store = tx.objectStore('docs');
+          const req = store.put(val, key);
+          req.onsuccess = () => resolve(true);
+          req.onerror = () => reject(req.error);
+        });
+      }
+    } catch (e) {
+      console.warn('IndexedDB setItem error:', e);
+    }
+    try {
+      localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
+    } catch (e) {}
+  },
+  getItem: async function(key) {
+    try {
+      if (!this.db) await this.init();
+      if (this.db) {
+        const idbVal = await new Promise((resolve) => {
+          const tx = this.db.transaction('docs', 'readonly');
+          const store = tx.objectStore('docs');
+          const req = store.get(key);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => resolve(null);
+        });
+        if (idbVal) return idbVal;
+      }
+    } catch (e) {}
+    try {
+      const ls = localStorage.getItem(key);
+      if (ls) {
+        try { return JSON.parse(ls); } catch (e) { return ls; }
+      }
+    } catch (e) {}
+    return null;
+  },
+  removeItem: async function(key) {
+    try {
+      if (!this.db) await this.init();
+      if (this.db) {
+        const tx = this.db.transaction('docs', 'readwrite');
+        tx.objectStore('docs').delete(key);
+      }
+    } catch (e) {}
+    try { localStorage.removeItem(key); } catch (e) {}
+  }
+};
+STMS_STORAGE.init();
+
+function openDocBlob(fileData, fileName){
+  if(!fileData) return;
+  try {
+    if(fileData.startsWith('data:')){
+      const arr = fileData.split(',');
+      const mimeMatch = arr[0].match(/:(.*?);/);
+      const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while(n--){
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      const blob = new Blob([u8arr], {type: mime});
+      const blobUrl = URL.createObjectURL(blob);
+      const win = window.open(blobUrl, '_blank');
+      if(!win){
+        // Fallback jika popup diblokir browser
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.target = '_blank';
+        a.download = fileName || 'Dokumen.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      return;
+    }
+  } catch(e) {
+    console.error('Blob preview error:', e);
+  }
+  const win = window.open();
+  if(win){
+    if(fileData.startsWith('data:application/pdf')){
+      win.document.write(`<iframe src="${fileData}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`);
+    } else {
+      win.document.write(`<img src="${fileData}" style="max-width:100%; display:block; margin:20px auto;">`);
+    }
+  }
 }
 
-function loadUserContractDoc(){
-  const key = getContractStorageKey();
-  let contract = null;
-  try { contract = JSON.parse(localStorage.getItem(key) || 'null'); } catch(e){}
+function getUserDocKeys(username, fullname){
+  const keys = [];
+  if(username) {
+    keys.push(username);
+    keys.push(username.toLowerCase());
+    keys.push(username.trim());
+  }
+  if(fullname) {
+    keys.push(fullname);
+    keys.push(fullname.toLowerCase());
+    keys.push(fullname.trim());
+    keys.push(fullname.replace(/\s+/g, '_').toLowerCase());
+  }
+  return [...new Set(keys.filter(Boolean))];
+}
 
+async function getStoredContract(username, fullname){
+  const aliases = getUserDocKeys(username, fullname);
+  for(const alias of aliases){
+    const key = `stms_contract_${alias}`;
+    const data = await STMS_STORAGE.getItem(key);
+    if(data && data.fileData) return data;
+  }
+  return null;
+}
+
+async function saveStoredContract(username, fullname, contractObj){
+  const aliases = getUserDocKeys(username, fullname);
+  for(const alias of aliases){
+    const key = `stms_contract_${alias}`;
+    await STMS_STORAGE.setItem(key, contractObj);
+  }
+}
+
+async function removeStoredContract(username, fullname){
+  const aliases = getUserDocKeys(username, fullname);
+  for(const alias of aliases){
+    const key = `stms_contract_${alias}`;
+    await STMS_STORAGE.removeItem(key);
+  }
+}
+
+async function getStoredInvoices(username, fullname){
+  const aliases = getUserDocKeys(username, fullname);
+  for(const alias of aliases){
+    const key = `stms_invoices_${alias}`;
+    const data = await STMS_STORAGE.getItem(key);
+    if(Array.isArray(data) && data.length) return data;
+  }
+  return [];
+}
+
+async function saveStoredInvoices(username, fullname, invoicesList){
+  const aliases = getUserDocKeys(username, fullname);
+  for(const alias of aliases){
+    const key = `stms_invoices_${alias}`;
+    await STMS_STORAGE.setItem(key, invoicesList);
+  }
+}
+
+// 2. Dokumen Kontrak Kerja (Single Document)
+async function loadUserContractDoc(){
   const activeBox = document.getElementById('profContractActiveBox');
   const uploadBox = document.getElementById('profContractUploadBox');
   const cancelBtn = document.getElementById('btnCancelChangeContract');
   document.getElementById('profContractUploadError').textContent = '';
   document.getElementById('profContractFileInput').value = '';
+
+  const contract = await getStoredContract(CURRENT_USER.username, CURRENT_USER.fullname);
 
   if(contract && contract.fileData){
     document.getElementById('profContractFileName').textContent = contract.fileName || 'Dokumen_Kontrak.pdf';
@@ -5537,27 +5716,18 @@ document.getElementById('btnCancelChangeContract').addEventListener('click', () 
   loadUserContractDoc();
 });
 
-document.getElementById('btnViewContract').addEventListener('click', () => {
-  const key = getContractStorageKey();
-  let contract = null;
-  try { contract = JSON.parse(localStorage.getItem(key) || 'null'); } catch(e){}
+document.getElementById('btnViewContract').addEventListener('click', async () => {
+  const contract = await getStoredContract(CURRENT_USER.username, CURRENT_USER.fullname);
   if(!contract || !contract.fileData){
     alert('Dokumen kontrak tidak ditemukan.');
     return;
   }
-  const win = window.open();
-  if(win){
-    if(contract.fileData.startsWith('data:application/pdf')){
-      win.document.write(`<iframe src="${contract.fileData}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`);
-    } else {
-      win.document.write(`<img src="${contract.fileData}" style="max-width:100%; display:block; margin:20px auto;">`);
-    }
-  }
+  openDocBlob(contract.fileData, contract.fileName || 'Dokumen_Kontrak.pdf');
 });
 
-document.getElementById('btnDeleteContract').addEventListener('click', () => {
+document.getElementById('btnDeleteContract').addEventListener('click', async () => {
   if(!confirm('Apakah Anda yakin ingin menghapus berkas kontrak kerja ini?')) return;
-  localStorage.removeItem(getContractStorageKey());
+  await removeStoredContract(CURRENT_USER.username, CURRENT_USER.fullname);
   showToast('Berkas kontrak berhasil dihapus.','ok');
   loadUserContractDoc();
 });
@@ -5573,13 +5743,13 @@ document.getElementById('btnSaveContractFile').addEventListener('click', () => {
     return;
   }
 
-  if(file.size > 12 * 1024 * 1024){
-    errEl.textContent = 'Ukuran berkas maksimal 12MB.';
+  if(file.size > 20 * 1024 * 1024){
+    errEl.textContent = 'Ukuran berkas maksimal 20MB.';
     return;
   }
 
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     const fileData = e.target.result;
     const contractObj = {
       fileName: file.name,
@@ -5588,11 +5758,11 @@ document.getElementById('btnSaveContractFile').addEventListener('click', () => {
       fileData: fileData
     };
     try {
-      localStorage.setItem(getContractStorageKey(), JSON.stringify(contractObj));
+      await saveStoredContract(CURRENT_USER.username, CURRENT_USER.fullname, contractObj);
       showToast('Berkas kontrak berhasil disimpan.','ok');
       loadUserContractDoc();
     } catch(err){
-      errEl.textContent = 'Ukuran file terlalu besar untuk penyimpanan lokal. Harap kompres file PDF/gambar Anda.';
+      errEl.textContent = 'Gagal menyimpan berkas kontrak: ' + err.message;
     }
   };
   reader.onerror = () => { errEl.textContent = 'Gagal membaca berkas file.'; };
@@ -5600,14 +5770,8 @@ document.getElementById('btnSaveContractFile').addEventListener('click', () => {
 });
 
 // 3. Dokumen Invoice per Periode
-function getInvoicesStorageKey(){
-  return `stms_invoices_${CURRENT_USER ? CURRENT_USER.username : 'user'}`;
-}
-
-function loadUserInvoicesList(){
-  const key = getInvoicesStorageKey();
-  let list = [];
-  try { list = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e){}
+async function loadUserInvoicesList(){
+  const list = await getStoredInvoices(CURRENT_USER.username, CURRENT_USER.fullname);
 
   const tbody = document.getElementById('profInvoiceTBody');
   document.getElementById('profInvoiceDesc').value = '';
@@ -5640,23 +5804,16 @@ function loadUserInvoicesList(){
       const idx = Number(btn.dataset.idx);
       const inv = list[idx];
       if(!inv || !inv.fileData) return;
-      const win = window.open();
-      if(win){
-        if(inv.fileData.startsWith('data:application/pdf')){
-          win.document.write(`<iframe src="${inv.fileData}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`);
-        } else {
-          win.document.write(`<img src="${inv.fileData}" style="max-width:100%; display:block; margin:20px auto;">`);
-        }
-      }
+      openDocBlob(inv.fileData, inv.fileName || 'Invoice.pdf');
     });
   });
 
   tbody.querySelectorAll('.btnDeleteInvoiceItem').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const idx = Number(btn.dataset.idx);
       if(!confirm('Apakah Anda yakin ingin menghapus invoice ini?')) return;
       list.splice(idx, 1);
-      localStorage.setItem(key, JSON.stringify(list));
+      await saveStoredInvoices(CURRENT_USER.username, CURRENT_USER.fullname, list);
       showToast('Invoice berhasil dihapus.','ok');
       loadUserInvoicesList();
     });
@@ -5680,13 +5837,13 @@ document.getElementById('btnUploadInvoice').addEventListener('click', () => {
     return;
   }
 
-  if(file.size > 12 * 1024 * 1024){
-    errEl.textContent = 'Ukuran berkas maksimal 12MB.';
+  if(file.size > 20 * 1024 * 1024){
+    errEl.textContent = 'Ukuran berkas maksimal 20MB.';
     return;
   }
 
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     const fileData = e.target.result;
     const invObj = {
       id: Date.now(),
@@ -5696,16 +5853,14 @@ document.getElementById('btnUploadInvoice').addEventListener('click', () => {
       uploadedAt: new Date().toISOString(),
       fileData: fileData
     };
-    const key = getInvoicesStorageKey();
-    let list = [];
-    try { list = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e){}
+    const list = await getStoredInvoices(CURRENT_USER.username, CURRENT_USER.fullname);
     list.unshift(invObj); // newest on top
     try {
-      localStorage.setItem(key, JSON.stringify(list));
+      await saveStoredInvoices(CURRENT_USER.username, CURRENT_USER.fullname, list);
       showToast('Invoice berhasil diunggah.','ok');
       loadUserInvoicesList();
     } catch(err){
-      errEl.textContent = 'Ukuran file terlalu besar untuk penyimpanan. Harap kompres file PDF/gambar invoice Anda.';
+      errEl.textContent = 'Gagal menyimpan invoice: ' + err.message;
     }
   };
   reader.onerror = () => { errEl.textContent = 'Gagal membaca berkas file.'; };
@@ -5841,24 +5996,15 @@ function closeViewDocsModal(){
 document.getElementById('btnCloseViewDocs').addEventListener('click', closeViewDocsModal);
 document.getElementById('btnCloseViewDocs2').addEventListener('click', closeViewDocsModal);
 
-function openViewUserDocsModal(username, fullname, project, defaultTab='kontrak'){
+async function openViewUserDocsModal(username, fullname, project, defaultTab='kontrak'){
   CURRENT_VIEW_DOCS_USER = { username, fullname, project };
   const isAdmin = CURRENT_USER && CURRENT_USER.role === 'admin';
   document.getElementById('viewDocsTitle').textContent = `Dokumen & Invoice Konsultan: ${fullname || username}`;
   document.getElementById('viewDocsSub').textContent = `Project: ${project || '-'} · Username: ${username || '-'}`;
 
-  const cKey = `stms_contract_${username}`;
-  const cKeyAlt = fullname ? `stms_contract_${fullname}` : '';
-  const invKey = `stms_invoices_${username}`;
-  const invKeyAlt = fullname ? `stms_invoices_${fullname}` : '';
-
   // 1. Render Kontrak
   const contractContent = document.getElementById('viewDocsContractContent');
-  let contract = null;
-  try {
-    contract = JSON.parse(localStorage.getItem(cKey) || 'null');
-    if(!contract && cKeyAlt) contract = JSON.parse(localStorage.getItem(cKeyAlt) || 'null');
-  } catch(e){}
+  const contract = await getStoredContract(username, fullname);
 
   const adminContractControls = isAdmin ? `
     <button class="btn btn-outline text-xs btnAdminDeleteContract" style="height:30px;padding:0 10px;color:#DC2626;border-color:#FCA5A5;"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i>Hapus (PIN)</button>
@@ -5892,23 +6038,15 @@ function openViewUserDocsModal(username, fullname, project, defaultTab='kontrak'
     `;
 
     contractContent.querySelector('.btnOpenContractViewWin').addEventListener('click', ()=>{
-      const win = window.open();
-      if(win){
-        if(contract.fileData.startsWith('data:application/pdf')){
-          win.document.write(`<iframe src="${contract.fileData}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`);
-        } else {
-          win.document.write(`<img src="${contract.fileData}" style="max-width:100%; display:block; margin:20px auto;">`);
-        }
-      }
+      openDocBlob(contract.fileData, contract.fileName || 'Dokumen_Kontrak.pdf');
     });
 
     if(isAdmin){
       const btnDelC = contractContent.querySelector('.btnAdminDeleteContract');
       if(btnDelC){
         btnDelC.addEventListener('click', ()=>{
-          requestAdminPin(`Menghapus berkas kontrak kerja milik konsultan "${fullname || username}"`, ()=>{
-            localStorage.removeItem(cKey);
-            if(cKeyAlt) localStorage.removeItem(cKeyAlt);
+          requestAdminPin(`Menghapus berkas kontrak kerja milik konsultan "${fullname || username}"`, async ()=>{
+            await removeStoredContract(username, fullname);
             showToast('Berkas kontrak berhasil dihapus oleh Admin.', 'ok');
             openViewUserDocsModal(username, fullname, project, 'kontrak');
           });
@@ -5939,14 +6077,14 @@ function openViewUserDocsModal(username, fullname, project, defaultTab='kontrak'
             const file = e.target.files && e.target.files[0];
             if(!file) return;
             const reader = new FileReader();
-            reader.onload = (ev)=>{
+            reader.onload = async (ev)=>{
               const contractObj = {
                 fileName: file.name,
                 fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
                 uploadedAt: new Date().toISOString(),
                 fileData: ev.target.result
               };
-              localStorage.setItem(cKey, JSON.stringify(contractObj));
+              await saveStoredContract(username, fullname, contractObj);
               showToast(`Berkas kontrak untuk ${fullname || username} berhasil disimpan.`, 'ok');
               openViewUserDocsModal(username, fullname, project, 'kontrak');
             };
@@ -5959,12 +6097,7 @@ function openViewUserDocsModal(username, fullname, project, defaultTab='kontrak'
   }
 
   // 2. Render Invoices
-  let invoices = [];
-  try {
-    invoices = JSON.parse(localStorage.getItem(invKey) || '[]');
-    if(!invoices.length && invKeyAlt) invoices = JSON.parse(localStorage.getItem(invKeyAlt) || '[]');
-  } catch(e){}
-
+  const invoices = await getStoredInvoices(username, fullname);
   const invTbody = document.getElementById('viewDocsInvoiceTBody');
   if(!invoices.length){
     invTbody.innerHTML = `<tr><td colspan="4" class="text-center text-slate-400 py-6">Konsultan ini belum mengunggah berkas invoice. ${isAdmin ? '<br><button class="btn btn-blue text-xs mt-2 btnAdminUploadInv"><i data-lucide="upload" class="w-3.5 h-3.5"></i>Upload Invoice Baru (PIN)</button>' : ''}</td></tr>`;
@@ -5989,14 +6122,7 @@ function openViewUserDocsModal(username, fullname, project, defaultTab='kontrak'
       btn.addEventListener('click', ()=>{
         const inv = invoices[Number(btn.dataset.idx)];
         if(!inv || !inv.fileData) return;
-        const win = window.open();
-        if(win){
-          if(inv.fileData.startsWith('data:application/pdf')){
-            win.document.write(`<iframe src="${inv.fileData}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`);
-          } else {
-            win.document.write(`<img src="${inv.fileData}" style="max-width:100%; display:block; margin:20px auto;">`);
-          }
-        }
+        openDocBlob(inv.fileData, inv.fileName || 'Invoice.pdf');
       });
     });
 
@@ -6005,10 +6131,9 @@ function openViewUserDocsModal(username, fullname, project, defaultTab='kontrak'
         btn.addEventListener('click', ()=>{
           const idx = Number(btn.dataset.idx);
           const targetInv = invoices[idx];
-          requestAdminPin(`Menghapus berkas invoice "${targetInv.periodDesc || targetInv.fileName}" milik konsultan ${fullname || username}`, ()=>{
+          requestAdminPin(`Menghapus berkas invoice "${targetInv.periodDesc || targetInv.fileName}" milik konsultan ${fullname || username}`, async ()=>{
             invoices.splice(idx, 1);
-            localStorage.setItem(invKey, JSON.stringify(invoices));
-            if(invKeyAlt) localStorage.setItem(invKeyAlt, JSON.stringify(invoices));
+            await saveStoredInvoices(username, fullname, invoices);
             showToast('Invoice berhasil dihapus oleh Admin.', 'ok');
             openViewUserDocsModal(username, fullname, project, 'invoice');
           });
@@ -6032,7 +6157,7 @@ function openViewUserDocsModal(username, fullname, project, defaultTab='kontrak'
             const file = e.target.files && e.target.files[0];
             if(!file) return;
             const reader = new FileReader();
-            reader.onload = (ev)=>{
+            reader.onload = async (ev)=>{
               const invObj = {
                 id: Date.now(),
                 periodDesc: desc.trim(),
@@ -6042,8 +6167,7 @@ function openViewUserDocsModal(username, fullname, project, defaultTab='kontrak'
                 fileData: ev.target.result
               };
               invoices.unshift(invObj);
-              localStorage.setItem(invKey, JSON.stringify(invoices));
-              if(invKeyAlt) localStorage.setItem(invKeyAlt, JSON.stringify(invoices));
+              await saveStoredInvoices(username, fullname, invoices);
               showToast(`Invoice untuk ${fullname || username} berhasil diunggah.`, 'ok');
               openViewUserDocsModal(username, fullname, project, 'invoice');
             };
