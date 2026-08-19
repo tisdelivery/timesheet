@@ -5584,6 +5584,10 @@ STMS_STORAGE.init();
 
 function openDocBlob(fileData, fileName){
   if(!fileData) return;
+  if(fileData.startsWith('http://') || fileData.startsWith('https://')){
+    window.open(fileData, '_blank');
+    return;
+  }
   try {
     if(fileData.startsWith('data:')){
       const arr = fileData.split(',');
