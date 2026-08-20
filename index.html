@@ -8,6 +8,11 @@
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  if (typeof window.supabase === 'undefined') {
+    document.write('<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"><\/script>');
+  }
+</script>
 <style>
 :root{
   --navy:#0E1730;
@@ -1455,7 +1460,22 @@ lucide.createIcons();
 // ================= SUPABASE CONFIGURATION =================
 const SUPABASE_URL = "https://ylnvepnpiwfrvneajmvq.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_Jo5GXu8rRgh86lgYWm3WlA_xiLPuoam";
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let supabaseClient = null;
+
+function getSupabaseClient() {
+  if (!supabaseClient && typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function') {
+    try {
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false }
+      });
+    } catch(e) {
+      console.error('Failed to init Supabase client:', e);
+    }
+  }
+  return supabaseClient;
+}
+// Initialize immediately
+getSupabaseClient();
 
 // Dummy URL to keep existing variables/endpoints working
 let APPS_SCRIPT_URL = "https://supabase-endpoint-placeholder.local/api";
@@ -1464,6 +1484,15 @@ let CURRENT_USER    = null;
 
 // ================= SUPABASE REQUEST COMPATIBILITY INTERCEPTOR =================
 async function handleSupabaseRequest(url, options) {
+  const client = getSupabaseClient();
+  if (!client) {
+    console.error('Supabase client is not ready. Checking window.supabase:', window.supabase);
+    return new Response(JSON.stringify({ error: 'Koneksi ke Supabase SDK belum siap. Silakan refresh browser Anda.' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
   let action = '';
   let params = {};
 
@@ -2441,10 +2470,10 @@ async function loadFromSheets(){
     populateMasterModal();
     loadMySubmissionStatus();
   }catch(err){
-    statusEl.textContent = 'Gagal konek — cek URL';
+    console.error('loadFromSheets error:', err);
+    statusEl.textContent = 'Gagal sinkron';
     badge.textContent = '⚠ Gagal sinkron';
-    showToast('Gagal konek ke Supabase','err');
-    console.error(err);
+    showToast('Gagal sinkron dari Supabase: ' + (err.message || 'Cek koneksi internet'),'err');
   }
 }
 
