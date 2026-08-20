@@ -1916,7 +1916,11 @@ async function handleSupabaseRequest(url, options) {
           Position: row.position,
           Status: row.status,
           HasSignature: row.has_signature || false,
-          Signature: row.signature_base64
+          Signature: row.signature_base64,
+          HomeBase: row.home_base || '',
+          NoHP: row.no_hp || '',
+          StartKontrak: row.start_kontrak || '',
+          EndKontrak: row.end_kontrak || ''
         }));
         break;
       }
@@ -1935,7 +1939,11 @@ async function handleSupabaseRequest(url, options) {
           position: params.user.Position,
           status: params.user.Status,
           has_signature: params.user.HasSignature || false,
-          signature_base64: params.user.Signature || null
+          signature_base64: params.user.Signature || null,
+          home_base: params.user.HomeBase || null,
+          no_hp: params.user.NoHP || null,
+          start_kontrak: params.user.StartKontrak || null,
+          end_kontrak: params.user.EndKontrak || null
         };
         if (params.isEdit) {
           await supabaseClient.from('users').update(userData).eq('username', params.user.Username);
