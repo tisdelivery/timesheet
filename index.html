@@ -2842,27 +2842,61 @@ function makeSuggestBox(){ const b=document.createElement('div'); b.className='s
 // ---------- Project ID Suggest ----------
 function showPidSuggest(inputEl, idx){
   closeSuggests();
-  const val = inputEl.value.trim().toUpperCase();
+  const rawVal = inputEl.value.trim();
+  const val = rawVal.toUpperCase();
   // Show ALL projects on focus (empty val), or filter on input
   let matches = Object.keys(PROJECTS).filter(k=>
-    !val || k.toUpperCase().includes(val) || (PROJECTS[k].siteId||'').toUpperCase().includes(val)
+    !val || k.toUpperCase().includes(val) || (PROJECTS[k].siteId||'').toUpperCase().includes(val) || (PROJECTS[k].name||'').toUpperCase().includes(val)
   );
-  if(!matches.length) return;
   matches.sort((a,b)=>(usageFrequency[b]||0)-(usageFrequency[a]||0));
   const box = makeSuggestBox();
   box.style.maxWidth='400px';
-  matches.forEach(m=>{
-    const p = PROJECTS[m];
-    const isFav = (usageFrequency[m]||0) >= 2;
-    const d = document.createElement('div'); d.className='suggest-item';
-    const baseId = p.projectId || m.split(' - ')[0];
-    const siteLabel = p.siteId ? `<span style="font-family:monospace;color:#6D28D9;font-size:11px;"> - ${p.siteId}</span>` : '';
-    d.innerHTML=`<div><div class="s-main">${baseId}${siteLabel}</div><div class="s-sub">${p.name} · ${p.customer}</div></div>${isFav?'<span class="s-badge">★ Favorit</span>':''}`;
-    const pick = ()=>{ rowState[idx].pid=m; rowState[idx].filled=true; if(!rowState[idx].mandays) rowState[idx].mandays=1.0; checkAiSuggestion(idx); closeSuggests(); render(); };
-    d.addEventListener('mousedown', e=>{ e.preventDefault(); pick(); }); // desktop: mousedown beats blur
-    d.addEventListener('touchend',  e=>{ e.preventDefault(); pick(); }); // mobile: touchend
-    box.appendChild(d);
-  });
+
+  if(matches.length > 0){
+    matches.slice(0, 30).forEach(m=>{
+      const p = PROJECTS[m];
+      const isFav = (usageFrequency[m]||0) >= 2;
+      const d = document.createElement('div'); d.className='suggest-item';
+      const baseId = p.projectId || m.split(' - ')[0];
+      const siteLabel = p.siteId ? `<span style="font-family:monospace;color:#6D28D9;font-size:11px;"> - ${p.siteId}</span>` : '';
+      d.innerHTML=`<div><div class="s-main">${baseId}${siteLabel}</div><div class="s-sub">${p.name} · ${p.customer}</div></div>${isFav?'<span class="s-badge">★ Favorit</span>':''}`;
+      const pick = ()=>{ rowState[idx].pid=m; rowState[idx].filled=true; if(!rowState[idx].mandays) rowState[idx].mandays=1.0; checkAiSuggestion(idx); closeSuggests(); render(); };
+      d.addEventListener('mousedown', e=>{ e.preventDefault(); pick(); }); // desktop: mousedown beats blur
+      d.addEventListener('touchend',  e=>{ e.preventDefault(); pick(); }); // mobile: touchend
+      box.appendChild(d);
+    });
+  }
+
+  // Jika user mengetik teks manual yang tidak persis ada di Master Data, sediakan opsi eksplisit
+  if(rawVal && !PROJECTS[rawVal]){
+    const manualItem = document.createElement('div');
+    manualItem.className = 'suggest-item';
+    manualItem.style.cssText = 'background:#FFFBEB;border-top:1px dashed #FDE68A;margin-top:2px;';
+    manualItem.innerHTML = `
+      <div>
+        <div class="s-main text-amber-800 font-semibold" style="font-size:11.5px;">
+          ✏️ Gunakan Manual: "${rawVal}"
+        </div>
+        <div class="s-sub text-amber-600 text-[10px]">
+          ⚠️ Non-Master Data (Pastikan ID tidak salah ketik)
+        </div>
+      </div>
+      <span class="s-badge" style="background:#FEF3C7;color:#B45309;border-color:#FCD34D;">Manual</span>
+    `;
+    const pickManual = ()=>{
+      rowState[idx].pid = rawVal;
+      rowState[idx].filled = true;
+      if(!rowState[idx].mandays) rowState[idx].mandays = 1.0;
+      checkAiSuggestion(idx);
+      closeSuggests();
+      render();
+    };
+    manualItem.addEventListener('mousedown', e=>{ e.preventDefault(); pickManual(); });
+    manualItem.addEventListener('touchend',  e=>{ e.preventDefault(); pickManual(); });
+    box.appendChild(manualItem);
+  }
+
+  if(box.children.length === 0) return;
   positionSuggest(box, inputEl);
 }
 
@@ -3002,7 +3036,10 @@ function render(){
     } else {
       // Semua baris non-holiday editable — KECUALI kalau sudah masuk approval
       // (status selain Draft), maka dikunci supaya tidak berubah saat direview.
-      const p = r.pid ? (PROJECTS[r.pid]||{name:'-',customer:'-',phase:'-'}) : {name:'-',customer:'-',phase:'-'};
+      const isManualPid = r.pid && !PROJECTS[r.pid];
+      const manualBadge = isManualPid
+        ? `<div class="mt-1"><span class="inline-flex items-center gap-1 text-[9px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 font-semibold" title="Project ID manual (tidak terdaftar di Master Data)"><i data-lucide="alert-triangle" class="w-2.5 h-2.5 text-amber-500"></i>Manual (Non-Master)</span></div>`
+        : '';
       const lock = getRowLockInfo(r.status, MY_LATEST_SUBMISSION);
       const rowBg = lock.locked ? `background:${lock.bg};` : (r.filled ? 'background:#F0FDF4;' : '');
       const syncDot = r.sheetRowId
@@ -3015,16 +3052,17 @@ function render(){
       tr.innerHTML=`
         <td style="${rowBg}"><input type="checkbox" class="rowChk" ${dis}></td>
         <td style="${rowBg}">${idx+1}${syncDot}</td>
-        <td style="${rowBg}">${r.date}<br><span class="text-[10px text-slate-400">${r.day}</span>${lockBadge?`<br>${lockBadge}`:''}</td>
+        <td style="${rowBg}">${r.date}<br><span class="text-[10px] text-slate-400">${r.day}</span>${lockBadge?`<br>${lockBadge}`:''}</td>
         <td style="${rowBg}">
           <div class="relative">
-            <input class="pid-input" data-idx="${idx}" value="${r.pid||''}" placeholder="Ketik Project ID..." autocomplete="off" style="font-size:11px;padding-right:22px;" ${dis}>
+            <input class="pid-input" data-idx="${idx}" value="${r.pid||''}" placeholder="Ketik / pilih Project ID..." autocomplete="off" style="font-size:11px;padding-right:22px;" ${dis}>
             <button class="open-master-btn absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500" data-idx="${idx}" title="Buka Master Data" ${dis}><i data-lucide="search" class="w-3 h-3"></i></button>
           </div>
+          ${manualBadge}
         </td>
-        <td data-label="Project Name" style="font-size:11.5px;${rowBg}">${p.name&&p.name!=='-'?p.name:'<span class="text-slate-300">-</span>'}</td>
+        <td data-label="Project Name" style="font-size:11.5px;${rowBg}">${p.name&&p.name!=='-'?p.name:(isManualPid?'<span class="text-amber-600 text-[10.5px] italic">Non-Master</span>':'<span class="text-slate-300">-</span>')}</td>
         <td data-label="Phase" style="font-size:11.5px;${rowBg}">${p.phase&&p.phase!=='-'?p.phase:'<span class="text-slate-300">-</span>'}</td>
-        <td data-label="Customer" style="font-size:11.5px;${rowBg}">${p.customer&&p.customer!=='-'?p.customer:'<span class="text-slate-300">-</span>'}</td>
+        <td data-label="Customer" style="font-size:11.5px;${rowBg}">${p.customer&&p.customer!=='-'?p.customer:(isManualPid?'<span class="text-amber-600 text-[10.5px] italic">Manual</span>':'<span class="text-slate-300">-</span>')}</td>
         <td data-label="Aktivitas" style="${rowBg};min-width:220px;">
           <textarea class="act-input" data-idx="${idx}" placeholder="Ketik atau pilih aktivitas..." autocomplete="off" ${dis} rows="1" style="width:100%;min-height:34px;padding:6px 8px;font-size:12px;line-height:1.45;border:1.5px solid var(--border);border-radius:8px;resize:vertical;font-family:inherit;box-sizing:border-box;white-space:pre-wrap;word-break:break-word;display:block;">${r.activity||''}</textarea>
           ${r.aiSuggest?`<div style="margin-top:4px;background:#FEF9E7;border:1px solid #F5E6A8;border-radius:6px;padding:5px 8px;font-size:10.5px;color:#8A6A16;display:flex;align-items:center;justify-content:space-between;gap:6px;"><span>Gunakan aktivitas kemarin?</span><button class="aiYesBtn" data-idx="${idx}" style="background:#F59E0B;color:#fff;border-radius:5px;padding:2px 8px;font-weight:700;">Ya</button></div>`:''}
@@ -3287,7 +3325,8 @@ function closeMasterModal(){
 document.getElementById('btnMasterDataOpen').addEventListener('click',()=>openMasterModal());
 document.getElementById('btnModalClose').addEventListener('click',closeMasterModal);
 document.getElementById('btnModalCancel').addEventListener('click',closeMasterModal);
-document.getElementById('modalMaster').addEventListener('click',e=>{ if(e.target===document.getElementById('modalMaster'))closeMasterModal(); });
+// Cegah modal tertutup jika klik tidak sengaja di luar kotak
+// document.getElementById('modalMaster').addEventListener('click',e=>{ if(e.target===document.getElementById('modalMaster'))closeMasterModal(); });
 
 // Tab toggle
 document.querySelectorAll('.master-tab-btn').forEach(btn=>{
@@ -3482,6 +3521,12 @@ document.getElementById('btnSubmit').addEventListener('click', async ()=>{
   const unfilled = workDays.filter(r => !r.filled || !r.pid);
   if(unfilled.length > 0){
     if(!confirm(`⚠️ Perhatian: Masih ada ${unfilled.length} hari kerja yang belum diisi Project ID / Aktivitas.\n\nTetap ingin submit timesheet ini ke Project Manager?`)){
+      return;
+    }
+  }
+  const manualPids = workDays.filter(r => r.pid && !PROJECTS[r.pid]);
+  if(manualPids.length > 0){
+    if(!confirm(`ℹ️ Catatan: Terdapat ${manualPids.length} baris dengan Project ID manual (tidak terdaftar di Master Data).\n\nApakah Anda sudah memastikan format Project ID benar dan ingin lanjut submit?`)){
       return;
     }
   }
@@ -3754,7 +3799,8 @@ function closeRevisiModal(){
 }
 document.getElementById('btnModalRevisiClose').addEventListener('click', closeRevisiModal);
 document.getElementById('btnModalRevisiCancel').addEventListener('click', closeRevisiModal);
-document.getElementById('modalRevisi').addEventListener('click', e=>{ if(e.target===document.getElementById('modalRevisi')) closeRevisiModal(); });
+// Cegah modal tertutup jika klik tidak sengaja di luar kotak
+// document.getElementById('modalRevisi').addEventListener('click', e=>{ if(e.target===document.getElementById('modalRevisi')) closeRevisiModal(); });
 
 document.getElementById('btnModalRevisiConfirm').addEventListener('click', async ()=>{
   if(!REVISI_TARGET) return;
@@ -4223,7 +4269,8 @@ function closeUserModal(){
 document.getElementById('btnTambahUser').addEventListener('click',()=>openUserModal());
 document.getElementById('btnModalUserClose').addEventListener('click',closeUserModal);
 document.getElementById('btnModalUserCancel').addEventListener('click',closeUserModal);
-document.getElementById('modalUser').addEventListener('click',e=>{ if(e.target===document.getElementById('modalUser'))closeUserModal(); });
+// Cegah modal tertutup jika klik tidak sengaja di luar kotak (agar data isian form admin tidak hilang)
+// document.getElementById('modalUser').addEventListener('click',e=>{ if(e.target===document.getElementById('modalUser'))closeUserModal(); });
 
 document.getElementById('btnDeleteUser').addEventListener('click', async ()=>{
   const editIdx=+document.getElementById('userEditIdx').value;
@@ -4332,7 +4379,8 @@ function closePeriodeModal(){
 document.getElementById('btnGantiPeriode').addEventListener('click', openPeriodeModal);
 document.getElementById('btnModalPeriodeClose').addEventListener('click', closePeriodeModal);
 document.getElementById('btnModalPeriodeCancel').addEventListener('click', closePeriodeModal);
-document.getElementById('modalPeriode').addEventListener('click', e=>{ if(e.target===document.getElementById('modalPeriode')) closePeriodeModal(); });
+// Cegah modal tertutup jika klik tidak sengaja di luar kotak
+// document.getElementById('modalPeriode').addEventListener('click', e=>{ if(e.target===document.getElementById('modalPeriode')) closePeriodeModal(); });
 
 document.getElementById('btnModalPeriodeApply').addEventListener('click', async ()=>{
   const start  = document.getElementById('periodeStart').value;
