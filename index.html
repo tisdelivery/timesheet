@@ -6233,183 +6233,216 @@ async function openViewUserDocsModal(username, fullname, project, defaultTab='ko
   document.getElementById('viewDocsTitle').textContent = `Dokumen & Invoice Konsultan: ${fullname || username}`;
   document.getElementById('viewDocsSub').textContent = `Project: ${project || '-'} · Username: ${username || '-'}`;
 
-  // 1. Render Kontrak
+  // Tampilkan modal overlay terlebih dahulu agar interaksi instan
+  document.getElementById('modalViewUserDocs').style.display = 'flex';
+  setViewDocsTab(defaultTab);
+
+  // Render loading state di panel kontrak & invoice
   const contractContent = document.getElementById('viewDocsContractContent');
-  const contract = await getStoredContract(username, fullname);
-
-  const adminContractControls = isAdmin ? `
-    <button class="btn btn-outline text-xs btnAdminDeleteContract" style="height:30px;padding:0 10px;color:#DC2626;border-color:#FCA5A5;"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i>Hapus (PIN)</button>
-    <button class="btn btn-outline text-xs btnAdminUploadContract" style="height:30px;padding:0 10px;color:#2563EB;border-color:#BFDBFE;"><i data-lucide="upload" class="w-3.5 h-3.5"></i>Ganti File (PIN)</button>
-  ` : '';
-
-  const adminEmptyContractControls = isAdmin ? `
-    <div class="mt-3">
-      <button class="btn btn-blue text-xs btnAdminUploadContract"><i data-lucide="upload" class="w-3.5 h-3.5"></i>Upload Kontrak untuk ${fullname || username} (PIN)</button>
+  contractContent.innerHTML = `
+    <div class="text-center py-8 text-slate-500">
+      <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mb-2"></div>
+      <div class="text-xs">⏳ Memuat berkas kontrak dari Supabase...</div>
     </div>
-  ` : '';
+  `;
 
-  if(contract && contract.fileData){
-    contractContent.innerHTML = `
-      <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <div class="flex items-center gap-2.5">
-          <div class="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
-            <i data-lucide="file-check" class="w-5 h-5"></i>
-          </div>
-          <div>
-            <div class="font-bold text-xs text-slate-800">${contract.fileName || 'Dokumen_Kontrak.pdf'}</div>
-            <div class="text-[10.5px] text-slate-400">Diunggah: ${formatTimestampShort(contract.uploadedAt)} · Ukuran: ${contract.fileSize || '-'}</div>
-          </div>
-        </div>
-        <span class="text-[10.5px] bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full font-semibold">Tersimpan</span>
-      </div>
-      <div class="flex items-center justify-end gap-2 pt-2 flex-wrap" style="border-top:1px dashed #E2E8F0;">
-        <button class="btn btn-blue text-xs btnOpenContractViewWin" style="height:30px;padding:0 14px;"><i data-lucide="external-link" class="w-3.5 h-3.5"></i>Buka Berkas Kontrak</button>
-        ${adminContractControls}
-      </div>
-    `;
+  const invTbody = document.getElementById('viewDocsInvoiceTBody');
+  invTbody.innerHTML = `
+    <tr>
+      <td colspan="4" class="text-center text-slate-500 py-6">
+        <div class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mb-2"></div>
+        <div class="text-xs">⏳ Memuat berkas invoice dari Supabase...</div>
+      </td>
+    </tr>
+  `;
+  lucide.createIcons();
 
-    contractContent.querySelector('.btnOpenContractViewWin').addEventListener('click', ()=>{
-      openDocBlob(contract.fileData, contract.fileName || 'Dokumen_Kontrak.pdf');
+  // Helper fungsi upload kontrak admin
+  const setupAdminContractUpload = () => {
+    requestAdminPin(`Mengunggah / Mengganti berkas kontrak kerja konsultan "${fullname || username}"`, ()=>{
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = 'application/pdf,image/png,image/jpeg';
+      inp.onchange = (e)=>{
+        const file = e.target.files && e.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = async (ev)=>{
+          const contractObj = {
+            fileName: file.name,
+            fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+            uploadedAt: new Date().toISOString(),
+            fileData: ev.target.result
+          };
+          await saveStoredContract(username, fullname, contractObj);
+          showToast(`Berkas kontrak untuk ${fullname || username} berhasil disimpan.`, 'ok');
+          openViewUserDocsModal(username, fullname, project, 'kontrak');
+        };
+        reader.readAsDataURL(file);
+      };
+      inp.click();
     });
+  };
 
-    if(isAdmin){
-      const btnDelC = contractContent.querySelector('.btnAdminDeleteContract');
-      if(btnDelC){
-        btnDelC.addEventListener('click', ()=>{
-          requestAdminPin(`Menghapus berkas kontrak kerja milik konsultan "${fullname || username}"`, async ()=>{
-            await removeStoredContract(username, fullname);
-            showToast('Berkas kontrak berhasil dihapus oleh Admin.', 'ok');
-            openViewUserDocsModal(username, fullname, project, 'kontrak');
+  // Load berkas kontrak secara asinkron
+  getStoredContract(username, fullname).then(contract => {
+    // Pastikan modal masih terbuka untuk user yang sama sebelum render
+    if (!CURRENT_VIEW_DOCS_USER || CURRENT_VIEW_DOCS_USER.username !== username) return;
+
+    const adminContractControls = isAdmin ? `
+      <button class="btn btn-outline text-xs btnAdminDeleteContract" style="height:30px;padding:0 10px;color:#DC2626;border-color:#FCA5A5;"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i>Hapus (PIN)</button>
+      <button class="btn btn-outline text-xs btnAdminUploadContract" style="height:30px;padding:0 10px;color:#2563EB;border-color:#BFDBFE;"><i data-lucide="upload" class="w-3.5 h-3.5"></i>Ganti File (PIN)</button>
+    ` : '';
+
+    const adminEmptyContractControls = isAdmin ? `
+      <div class="mt-3">
+        <button class="btn btn-blue text-xs btnAdminUploadContract"><i data-lucide="upload" class="w-3.5 h-3.5"></i>Upload Kontrak untuk ${fullname || username} (PIN)</button>
+      </div>
+    ` : '';
+
+    if(contract && contract.fileData){
+      contractContent.innerHTML = `
+        <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+              <i data-lucide="file-check" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <div class="font-bold text-xs text-slate-800">${contract.fileName || 'Dokumen_Kontrak.pdf'}</div>
+              <div class="text-[10.5px] text-slate-400">Diunggah: ${formatTimestampShort(contract.uploadedAt)} · Ukuran: ${contract.fileSize || '-'}</div>
+            </div>
+          </div>
+          <span class="text-[10.5px] bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full font-semibold">Tersimpan</span>
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-2 flex-wrap" style="border-top:1px dashed #E2E8F0;">
+          <button class="btn btn-blue text-xs btnOpenContractViewWin" style="height:30px;padding:0 14px;"><i data-lucide="external-link" class="w-3.5 h-3.5"></i>Buka Berkas Kontrak</button>
+          ${adminContractControls}
+        </div>
+      `;
+
+      contractContent.querySelector('.btnOpenContractViewWin').addEventListener('click', ()=>{
+        openDocBlob(contract.fileData, contract.fileName || 'Dokumen_Kontrak.pdf');
+      });
+
+      if(isAdmin){
+        const btnDelC = contractContent.querySelector('.btnAdminDeleteContract');
+        if(btnDelC){
+          btnDelC.addEventListener('click', ()=>{
+            requestAdminPin(`Menghapus berkas kontrak kerja milik konsultan "${fullname || username}"`, async ()=>{
+              await removeStoredContract(username, fullname);
+              showToast('Berkas kontrak berhasil dihapus oleh Admin.', 'ok');
+              openViewUserDocsModal(username, fullname, project, 'kontrak');
+            });
+          });
+        }
+        const btnUpC = contractContent.querySelector('.btnAdminUploadContract');
+        if(btnUpC) btnUpC.addEventListener('click', setupAdminContractUpload);
+      }
+    } else {
+      contractContent.innerHTML = `
+        <div class="text-center py-8 text-slate-400">
+          <i data-lucide="file-x-2" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
+          <div class="text-xs font-semibold text-slate-600">Belum Ada Dokumen Kontrak</div>
+          <div class="text-[11px] text-slate-400 mt-0.5">Konsultan ${fullname || username} belum mengunggah berkas kontrak kerja.</div>
+          ${adminEmptyContractControls}
+        </div>
+      `;
+      if(isAdmin){
+        const btnUpC = contractContent.querySelector('.btnAdminUploadContract');
+        if(btnUpC) btnUpC.addEventListener('click', setupAdminContractUpload);
+      }
+    }
+    lucide.createIcons();
+  }).catch(err => {
+    contractContent.innerHTML = `<div class="text-center py-8 text-red-500 text-xs">Gagal memuat berkas kontrak: ${err.message || err}</div>`;
+  });
+
+  // Load berkas invoices secara asinkron
+  getStoredInvoices(username, fullname).then(invoices => {
+    // Pastikan modal masih terbuka untuk user yang sama sebelum render
+    if (!CURRENT_VIEW_DOCS_USER || CURRENT_VIEW_DOCS_USER.username !== username) return;
+
+    if(!invoices.length){
+      invTbody.innerHTML = `<tr><td colspan="4" class="text-center text-slate-400 py-6">Konsultan ini belum mengunggah berkas invoice. ${isAdmin ? '<br><button class="btn btn-blue text-xs mt-2 btnAdminUploadInv"><i data-lucide="upload" class="w-3.5 h-3.5"></i>Upload Invoice Baru (PIN)</button>' : ''}</td></tr>`;
+    } else {
+      invTbody.innerHTML = invoices.map((inv, idx) => `
+        <tr>
+          <td style="font-weight:600;"><i data-lucide="receipt" class="w-3.5 h-3.5 inline mr-1 text-slate-400"></i>${inv.periodDesc || '-'}</td>
+          <td style="font-size:12px;color:#475569;">${inv.fileName || '-'} <span class="text-[10px] text-slate-400">(${inv.fileSize || ''})</span></td>
+          <td style="font-size:11px;color:#64748B;">${formatTimestampShort(inv.uploadedAt)}</td>
+          <td>
+            <div class="flex items-center gap-1.5">
+              <button class="btn btn-outline text-[11px] btnViewSingleInvoiceReview" data-idx="${idx}" style="padding:3px 10px;height:26px;color:var(--blue);border-color:#BFDBFE;">
+                <i data-lucide="external-link" class="w-3 h-3"></i>Buka
+              </button>
+              ${isAdmin ? `<button class="btn btn-outline text-[11px] btnAdminDelInvItem" data-idx="${idx}" style="padding:3px 8px;height:26px;color:#DC2626;border-color:#FCA5A5;"><i data-lucide="trash-2" class="w-3 h-3"></i></button>` : ''}
+            </div>
+          </td>
+        </tr>
+      `).join('') + (isAdmin ? `<tr><td colspan="4" class="text-right py-2"><button class="btn btn-blue text-xs btnAdminUploadInv"><i data-lucide="upload" class="w-3.5 h-3.5"></i>+ Upload Invoice Baru (PIN)</button></td></tr>` : '');
+
+      invTbody.querySelectorAll('.btnViewSingleInvoiceReview').forEach(btn => {
+        btn.addEventListener('click', ()=>{
+          const inv = invoices[Number(btn.dataset.idx)];
+          if(!inv || !inv.fileData) return;
+          openDocBlob(inv.fileData, inv.fileName || 'Invoice.pdf');
+        });
+      });
+
+      if(isAdmin){
+        invTbody.querySelectorAll('.btnAdminDelInvItem').forEach(btn => {
+          btn.addEventListener('click', ()=>{
+            const idx = Number(btn.dataset.idx);
+            const targetInv = invoices[idx];
+            if(!targetInv) return;
+            requestAdminPin(`Menghapus berkas invoice "${targetInv.periodDesc || targetInv.fileName}" milik konsultan ${fullname || username}`, async ()=>{
+              await deleteStoredInvoice(username, fullname, targetInv.id, targetInv.periodDesc);
+              showToast('Invoice berhasil dihapus oleh Admin.', 'ok');
+              openViewUserDocsModal(username, fullname, project, 'invoice');
+            });
           });
         });
       }
     }
-  } else {
-    contractContent.innerHTML = `
-      <div class="text-center py-8 text-slate-400">
-        <i data-lucide="file-x-2" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
-        <div class="text-xs font-semibold text-slate-600">Belum Ada Dokumen Kontrak</div>
-        <div class="text-[11px] text-slate-400 mt-0.5">Konsultan ${fullname || username} belum mengunggah berkas kontrak kerja.</div>
-        ${adminEmptyContractControls}
-      </div>
-    `;
-  }
 
-  // Admin Upload Kontrak Listener
-  if(isAdmin){
-    const btnUpC = contractContent.querySelector('.btnAdminUploadContract');
-    if(btnUpC){
-      btnUpC.addEventListener('click', ()=>{
-        requestAdminPin(`Mengunggah / Mengganti berkas kontrak kerja konsultan "${fullname || username}"`, ()=>{
-          const inp = document.createElement('input');
-          inp.type = 'file';
-          inp.accept = 'application/pdf,image/png,image/jpeg';
-          inp.onchange = (e)=>{
-            const file = e.target.files && e.target.files[0];
-            if(!file) return;
-            const reader = new FileReader();
-            reader.onload = async (ev)=>{
-              const contractObj = {
-                fileName: file.name,
-                fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-                uploadedAt: new Date().toISOString(),
-                fileData: ev.target.result
-              };
-              await saveStoredContract(username, fullname, contractObj);
-              showToast(`Berkas kontrak untuk ${fullname || username} berhasil disimpan.`, 'ok');
-              openViewUserDocsModal(username, fullname, project, 'kontrak');
-            };
-            reader.readAsDataURL(file);
-          };
-          inp.click();
-        });
-      });
-    }
-  }
-
-  // 2. Render Invoices
-  const invoices = await getStoredInvoices(username, fullname);
-  const invTbody = document.getElementById('viewDocsInvoiceTBody');
-  if(!invoices.length){
-    invTbody.innerHTML = `<tr><td colspan="4" class="text-center text-slate-400 py-6">Konsultan ini belum mengunggah berkas invoice. ${isAdmin ? '<br><button class="btn btn-blue text-xs mt-2 btnAdminUploadInv"><i data-lucide="upload" class="w-3.5 h-3.5"></i>Upload Invoice Baru (PIN)</button>' : ''}</td></tr>`;
-  } else {
-    invTbody.innerHTML = invoices.map((inv, idx) => `
-      <tr>
-        <td style="font-weight:600;"><i data-lucide="receipt" class="w-3.5 h-3.5 inline mr-1 text-slate-400"></i>${inv.periodDesc || '-'}</td>
-        <td style="font-size:12px;color:#475569;">${inv.fileName || '-'} <span class="text-[10px] text-slate-400">(${inv.fileSize || ''})</span></td>
-        <td style="font-size:11px;color:#64748B;">${formatTimestampShort(inv.uploadedAt)}</td>
-        <td>
-          <div class="flex items-center gap-1.5">
-            <button class="btn btn-outline text-[11px] btnViewSingleInvoiceReview" data-idx="${idx}" style="padding:3px 10px;height:26px;color:var(--blue);border-color:#BFDBFE;">
-              <i data-lucide="external-link" class="w-3 h-3"></i>Buka
-            </button>
-            ${isAdmin ? `<button class="btn btn-outline text-[11px] btnAdminDelInvItem" data-idx="${idx}" style="padding:3px 8px;height:26px;color:#DC2626;border-color:#FCA5A5;"><i data-lucide="trash-2" class="w-3 h-3"></i></button>` : ''}
-          </div>
-        </td>
-      </tr>
-    `).join('') + (isAdmin ? `<tr><td colspan="4" class="text-right py-2"><button class="btn btn-blue text-xs btnAdminUploadInv"><i data-lucide="upload" class="w-3.5 h-3.5"></i>+ Upload Invoice Baru (PIN)</button></td></tr>` : '');
-
-    invTbody.querySelectorAll('.btnViewSingleInvoiceReview').forEach(btn => {
-      btn.addEventListener('click', ()=>{
-        const inv = invoices[Number(btn.dataset.idx)];
-        if(!inv || !inv.fileData) return;
-        openDocBlob(inv.fileData, inv.fileName || 'Invoice.pdf');
-      });
-    });
-
+    // Admin Upload Invoice Listener
     if(isAdmin){
-      invTbody.querySelectorAll('.btnAdminDelInvItem').forEach(btn => {
-        btn.addEventListener('click', ()=>{
-          const idx = Number(btn.dataset.idx);
-          const targetInv = invoices[idx];
-          if(!targetInv) return;
-          requestAdminPin(`Menghapus berkas invoice "${targetInv.periodDesc || targetInv.fileName}" milik konsultan ${fullname || username}`, async ()=>{
-            await deleteStoredInvoice(username, fullname, targetInv.id, targetInv.periodDesc);
-            showToast('Invoice berhasil dihapus oleh Admin.', 'ok');
-            openViewUserDocsModal(username, fullname, project, 'invoice');
+      const btnUpInv = invTbody.querySelector('.btnAdminUploadInv');
+      if(btnUpInv){
+        btnUpInv.addEventListener('click', ()=>{
+          const desc = prompt('Masukkan keterangan / periode invoice (cth: Periode 15 Jul - 14 Agu 2026):');
+          if(!desc || !desc.trim()) return;
+          requestAdminPin(`Mengunggah invoice baru untuk konsultan "${fullname || username}"`, ()=>{
+            const inp = document.createElement('input');
+            inp.type = 'file';
+            inp.accept = 'application/pdf,image/png,image/jpeg';
+            inp.onchange = (e)=>{
+              const file = e.target.files && e.target.files[0];
+              if(!file) return;
+              const reader = new FileReader();
+              reader.onload = async (ev)=>{
+                const invObj = {
+                  periodDesc: desc.trim(),
+                  fileName: file.name,
+                  fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+                  uploadedAt: new Date().toISOString(),
+                  fileData: ev.target.result
+                };
+                await saveStoredInvoices(username, fullname, invObj);
+                showToast(`Invoice untuk ${fullname || username} berhasil diunggah ke Cloud.`, 'ok');
+                openViewUserDocsModal(username, fullname, project, 'invoice');
+              };
+              reader.readAsDataURL(file);
+            };
+            inp.click();
           });
         });
-      });
+      }
     }
-  }
-
-  // Admin Upload Invoice Listener
-  if(isAdmin){
-    const btnUpInv = invTbody.querySelector('.btnAdminUploadInv');
-    if(btnUpInv){
-      btnUpInv.addEventListener('click', ()=>{
-        const desc = prompt('Masukkan keterangan / periode invoice (cth: Periode 15 Jul - 14 Agu 2026):');
-        if(!desc || !desc.trim()) return;
-        requestAdminPin(`Mengunggah invoice baru untuk konsultan "${fullname || username}"`, ()=>{
-          const inp = document.createElement('input');
-          inp.type = 'file';
-          inp.accept = 'application/pdf,image/png,image/jpeg';
-          inp.onchange = (e)=>{
-            const file = e.target.files && e.target.files[0];
-            if(!file) return;
-            const reader = new FileReader();
-            reader.onload = async (ev)=>{
-              const invObj = {
-                periodDesc: desc.trim(),
-                fileName: file.name,
-                fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-                uploadedAt: new Date().toISOString(),
-                fileData: ev.target.result
-              };
-              await saveStoredInvoices(username, fullname, invObj);
-              showToast(`Invoice untuk ${fullname || username} berhasil diunggah ke Cloud.`, 'ok');
-              openViewUserDocsModal(username, fullname, project, 'invoice');
-            };
-            reader.readAsDataURL(file);
-          };
-          inp.click();
-        });
-      });
-    }
-  }
-
-  setViewDocsTab(defaultTab);
-  document.getElementById('modalViewUserDocs').style.display = 'flex';
+    lucide.createIcons();
+  }).catch(err => {
+    invTbody.innerHTML = `<tr><td colspan="4" class="text-center text-red-500 py-6 text-xs">Gagal memuat berkas invoice: ${err.message || err}</td></tr>`;
+  });
   lucide.createIcons();
 }
 
