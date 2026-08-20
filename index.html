@@ -3065,6 +3065,7 @@ function render(){
     } else {
       // Semua baris non-holiday editable — KECUALI kalau sudah masuk approval
       // (status selain Draft), maka dikunci supaya tidak berubah saat direview.
+      const p = r.pid ? (PROJECTS[r.pid]||{name:'-',customer:'-',phase:'-'}) : {name:'-',customer:'-',phase:'-'};
       const isManualPid = r.pid && !PROJECTS[r.pid];
       const manualBadge = isManualPid
         ? `<div class="mt-1"><span class="inline-flex items-center gap-1 text-[9px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 font-semibold" title="Project ID manual (tidak terdaftar di Master Data)"><i data-lucide="alert-triangle" class="w-2.5 h-2.5 text-amber-500"></i>Manual (Non-Master)</span></div>`
