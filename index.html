@@ -536,7 +536,7 @@ html,body{overflow-x:hidden;max-width:100%;}
                     <th><input type="checkbox" id="chkAll"></th><th>No</th><th>Date</th>
                     <th style="min-width:170px;">Project ID *</th>
                     <th>Project Name</th><th>Project Phase</th><th>Customer</th>
-                    <th style="min-width:230px;">Activity Description *</th>
+                    <th style="min-width:350px; width:35%;">Activity Description *</th>
                     <th style="min-width:120px;">Location *</th>
                     <th style="min-width:110px;">Billable Hours *</th>
                     <th>Mandays</th><th>Aksi</th>
@@ -2947,7 +2947,14 @@ function showActSuggest(inputEl, idx){
   matches.forEach(m=>{
     const d=document.createElement('div'); d.className='suggest-item';
     d.innerHTML=`<span style="white-space:normal;font-size:12px;">${m}</span>`;
-    const pick = ()=>{ rowState[idx].activity=m; inputEl.value=m; trackUsage(null,m); closeSuggests(); };
+    const pick = ()=>{
+      rowState[idx].activity=m;
+      inputEl.value=m;
+      inputEl.style.height = 'auto';
+      inputEl.style.height = Math.max(34, inputEl.scrollHeight) + 'px';
+      trackUsage(null,m);
+      closeSuggests();
+    };
     d.addEventListener('mousedown', e=>{ e.preventDefault(); pick(); });
     d.addEventListener('touchend',  e=>{ e.preventDefault(); pick(); });
     box.appendChild(d);
@@ -3101,8 +3108,8 @@ function render(){
         <td data-label="Project Name" style="font-size:11.5px;${rowBg}">${p.name&&p.name!=='-'?p.name:(isManualPid?'<span class="text-amber-600 text-[10.5px] italic">Non-Master</span>':'<span class="text-slate-300">-</span>')}</td>
         <td data-label="Phase" style="font-size:11.5px;${rowBg}">${p.phase&&p.phase!=='-'?p.phase:'<span class="text-slate-300">-</span>'}</td>
         <td data-label="Customer" style="font-size:11.5px;${rowBg}">${p.customer&&p.customer!=='-'?p.customer:(isManualPid?'<span class="text-amber-600 text-[10.5px] italic">Manual</span>':'<span class="text-slate-300">-</span>')}</td>
-        <td data-label="Aktivitas" style="${rowBg};min-width:220px;">
-          <textarea class="act-input" data-idx="${idx}" placeholder="Ketik atau pilih aktivitas..." autocomplete="off" ${dis} rows="1" style="width:100%;min-height:34px;padding:6px 8px;font-size:12px;line-height:1.45;border:1.5px solid var(--border);border-radius:8px;resize:vertical;font-family:inherit;box-sizing:border-box;white-space:pre-wrap;word-break:break-word;display:block;">${r.activity||''}</textarea>
+        <td data-label="Aktivitas" style="${rowBg};min-width:350px; width:35%;">
+          <textarea class="act-input" data-idx="${idx}" placeholder="Ketik atau pilih aktivitas..." autocomplete="off" ${dis} rows="1" style="width:100%;min-height:34px;padding:6px 8px;font-size:12px;line-height:1.45;border:1.5px solid var(--border);border-radius:8px;resize:vertical;font-family:inherit;box-sizing:border-box;white-space:pre-wrap;word-break:break-word;display:block;overflow-y:hidden;">${r.activity||''}</textarea>
           ${r.aiSuggest?`<div style="margin-top:4px;background:#FEF9E7;border:1px solid #F5E6A8;border-radius:6px;padding:5px 8px;font-size:10.5px;color:#8A6A16;display:flex;align-items:center;justify-content:space-between;gap:6px;"><span>Gunakan aktivitas kemarin?</span><button class="aiYesBtn" data-idx="${idx}" style="background:#F59E0B;color:#fff;border-radius:5px;padding:2px 8px;font-weight:700;">Ya</button></div>`:''}
         </td>
         <td data-label="Lokasi" style="${rowBg}"><input class="loc-input" data-idx="${idx}" value="${r.location||''}" placeholder="Pilih lokasi..." autocomplete="off" ${dis}></td>
@@ -3121,6 +3128,11 @@ function render(){
     // Animasi fade-in ringan untuk setiap baris
     tr.classList.add('row-fade-in');
     tsBody.appendChild(tr);
+  });
+  // Auto-fit height untuk semua textarea aktivitas setelah render
+  document.querySelectorAll('.act-input').forEach(textarea => {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.max(34, textarea.scrollHeight) + 'px';
   });
   lucide.createIcons();
   attachHandlers();
