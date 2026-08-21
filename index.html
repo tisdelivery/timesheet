@@ -703,7 +703,7 @@ html,body{overflow-x:hidden;max-width:100%;}
         <div style="overflow-x:auto;">
           <table class="ts"><thead><tr>
             <th>No</th><th>Consultant</th><th>Date</th><th>Project ID</th>
-            <th>Project Name</th><th>Activity</th><th>Location</th>
+            <th>Project Name</th><th style="min-width:250px; width:25%;">Activity</th><th>Location</th>
             <th>Hours</th><th>Mandays</th><th>Status</th>
           </tr></thead><tbody id="adminTBody"></tbody></table>
           <div id="adminEmpty" class="hidden text-center py-8 text-slate-400 text-sm">Tidak ada data.</div>
@@ -828,7 +828,7 @@ html,body{overflow-x:hidden;max-width:100%;}
           <div id="approvalDetailStatusPill" style="display:none;margin-bottom:10px;"></div>
           <div style="overflow-x:auto;">
             <table class="ts"><thead><tr>
-              <th>Date</th><th>Project</th><th>Activity</th><th>Location</th><th>Hours</th><th>Mandays</th>
+              <th>Date</th><th>Project</th><th style="min-width:300px; width:45%;">Activity</th><th>Location</th><th>Hours</th><th>Mandays</th>
             </tr></thead><tbody id="approvalDetailTBody"></tbody></table>
           </div>
           <div class="mt-4" id="approvalHistoryWrap"></div>
@@ -3967,7 +3967,7 @@ async function loadAdminData(){
         <td style="white-space:nowrap;">${r.Date||r.date||'-'}</td>
         <td style="font-family:monospace;font-size:11px;">${pid||'-'}</td>
         <td style="font-size:11.5px;">${pName}</td>
-        <td style="font-size:11px;max-width:180px;word-break:break-word;">${r.Activity||r.activity||'-'}</td>
+        <td style="font-size:11.5px;min-width:250px;width:25%;white-space:normal;word-break:break-word;">${r.Activity||r.activity||'-'}</td>
         <td>${r.Location||r.location||'-'}</td><td style="white-space:nowrap;">${r.Hours||r.hours||'-'}</td>
         <td style="text-align:center;">${r.Mandays!==undefined?r.Mandays:(r.mandays||'-')}</td>
         <td style="${sc}">${r.Status||r.status||'Draft'}</td>`;
@@ -4781,7 +4781,7 @@ async function openApprovalDetail(submissionId, readonly){
       <tr>
         <td>${r.date||'-'}</td>
         <td>${r.holiday ? '-' : ((p.name&&p.name!=='-') ? p.name : '-')}</td>
-        <td>${r.holiday ? 'Hari Libur' : (r.activity||'-')}</td>
+        <td style="white-space:normal;min-width:300px;width:45%;">${r.holiday ? 'Hari Libur' : (r.activity||'-')}</td>
         <td>${r.holiday ? '-' : (r.location||'-')}</td>
         <td>${r.holiday ? '-' : (r.hours||'-')}</td>
         <td>${r.holiday ? '-' : (r.mandays||'-')}</td>
