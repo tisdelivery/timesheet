@@ -3718,8 +3718,8 @@ function renderPrintDocument({consultant, position, project, customer, monthYear
     document.getElementById('pvWatermark').style.display = 'none';
   } else {
     // Mode Digital: Tampilkan tanda tangan lengkap (Consultant, PM, Dept Head, Div Head)
-    const consultantSig = (approval && approval.Consultant_Signature) || (CURRENT_USER && (CURRENT_USER.fullname === consultant || CURRENT_USER.username === consultant) ? (CURRENT_USER.signature_base64 || CURRENT_USER.signature) : null);
-    const pmSig = (approval && approval.PM_Signature) || (CURRENT_USER && (CURRENT_USER.fullname === pmName || CURRENT_USER.username === pmName) ? (CURRENT_USER.signature_base64 || CURRENT_USER.signature) : null);
+    const consultantSig = (approval && approval.Consultant_Signature) || (CURRENT_USER && ((CURRENT_USER.fullname && CURRENT_USER.fullname.trim().toLowerCase() === String(consultant).trim().toLowerCase()) || (CURRENT_USER.username && CURRENT_USER.username.trim().toLowerCase() === String(consultant).trim().toLowerCase())) ? (CURRENT_USER.signature_base64 || CURRENT_USER.signature) : null);
+    const pmSig = (approval && approval.PM_Signature) || (CURRENT_USER && ((CURRENT_USER.fullname && CURRENT_USER.fullname.trim().toLowerCase() === String(pmName).trim().toLowerCase()) || (CURRENT_USER.username && CURRENT_USER.username.trim().toLowerCase() === String(pmName).trim().toLowerCase())) ? (CURRENT_USER.signature_base64 || CURRENT_USER.signature) : null);
     fillSignatureSlot('Consultant', consultant, (approval && approval.SubmittedAt) || new Date().toISOString(), consultantSig);
     fillSignatureSlot('PM',       pmName,       approval && approval.PM_Timestamp, pmSig);
     fillSignatureSlot('DeptHead', deptHeadName, approval && approval.DeptHead_Timestamp, approval && approval.DeptHead_Signature);
@@ -3809,8 +3809,8 @@ async function printSubmission(submissionId, isManualSign=false){
     const [y,m] = String(detail.PeriodStart).split('-').map(Number);
     const rows = buildDayRowsFromEntries(period, detail.timesheetRows || []);
     const users = await fetch(`${APPS_SCRIPT_URL}?action=getUsers`).then(r=>r.json()).catch(()=>[]);
-    const userMeta = Array.isArray(users) ? users.find(u=>u.FullName===detail.Consultant || u.Username===detail.Consultant) : null;
-    const consSig = (detail && detail.Consultant_Signature) || (userMeta && (userMeta.Signature || userMeta.signature_base64)) || (CURRENT_USER && (CURRENT_USER.fullname===detail.Consultant || CURRENT_USER.username===detail.Consultant) ? (CURRENT_USER.signature_base64 || CURRENT_USER.signature) : null);
+    const userMeta = Array.isArray(users) ? users.find(u=> (u.FullName && u.FullName.trim().toLowerCase() === String(detail.Consultant).trim().toLowerCase()) || (u.Username && u.Username.trim().toLowerCase() === String(detail.Consultant).trim().toLowerCase()) ) : null;
+    const consSig = (detail && detail.Consultant_Signature) || (userMeta && (userMeta.Signature || userMeta.signature_base64)) || (CURRENT_USER && ((CURRENT_USER.fullname && CURRENT_USER.fullname.trim().toLowerCase() === String(detail.Consultant).trim().toLowerCase()) || (CURRENT_USER.username && CURRENT_USER.username.trim().toLowerCase() === String(detail.Consultant).trim().toLowerCase())) ? (CURRENT_USER.signature_base64 || CURRENT_USER.signature) : null);
     renderPrintDocument({
       consultant: detail.Consultant,
       position:   (userMeta && userMeta.Position) || '-',
@@ -4041,7 +4041,7 @@ async function exportAdminTimesheetPDF(){
       fetch(`${APPS_SCRIPT_URL}?action=getUsers`).then(r=>r.json()),
       fetch(`${APPS_SCRIPT_URL}?action=getAllTimesheet&consultant=${encodeURIComponent(consultant)}&startDate=${start}&endDate=${end}`).then(r=>r.json())
     ]);
-    const userMeta = Array.isArray(users) ? users.find(u=>u.FullName===consultant) : null;
+    const userMeta = Array.isArray(users) ? users.find(u=> (u.FullName && u.FullName.trim().toLowerCase() === String(consultant).trim().toLowerCase()) || (u.Username && u.Username.trim().toLowerCase() === String(consultant).trim().toLowerCase()) ) : null;
     const [y,m] = start.split('-').map(Number);
     const rows = buildDayRowsFromEntries(period, Array.isArray(entries) ? entries : []);
 
