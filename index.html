@@ -3812,10 +3812,19 @@ function buildTimesheetPayload(status){
 let isTimesheetDirty = false;
 let isSavingDraft = false;
 let autoSaveInterval = null;
+let typingDebounceTimer = null;
 
-function markTimesheetDirty(){
+function markTimesheetDirty(isTyping = true){
   isTimesheetDirty = true;
-  updateAutoSaveBadgeStatus('dirty');
+  updateAutoSaveBadgeStatus(isTyping ? 'typing' : 'dirty');
+
+  // Debounce Auto Save: simpan otomatis 3.5 detik SETELAH pengguna benar-benar berhenti mengetik
+  if(typingDebounceTimer) clearTimeout(typingDebounceTimer);
+  typingDebounceTimer = setTimeout(()=>{
+    if(isTimesheetDirty && !isSavingDraft && CURRENT_USER && CURRENT_USER.role === 'user'){
+      saveToSheets('Draft', { isAutoSave: true });
+    }
+  }, 3500);
 }
 
 function updateAutoSaveBadgeStatus(state, timeStr = ''){
@@ -3823,11 +3832,14 @@ function updateAutoSaveBadgeStatus(state, timeStr = ''){
   const badge = document.getElementById('autoSaveBadgeWrap');
   if(!txt || !badge) return;
 
-  if(state === 'saving'){
-    txt.textContent = 'Menyimpan Draft...';
+  if(state === 'typing'){
+    txt.textContent = '⚡ Mengetik...';
+    badge.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-amber-500 shadow-xs';
+  } else if(state === 'saving'){
+    txt.textContent = '⏳ Menyimpan Draft...';
     badge.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 shadow-xs animate-pulse';
   } else if(state === 'saved'){
-    txt.textContent = timeStr ? `Draft Tersimpan (${timeStr})` : 'Draft Tersimpan (Otomatis)';
+    txt.textContent = timeStr ? `✓ Draft Tersimpan (${timeStr})` : '✓ Draft Tersimpan';
     badge.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-green-600 shadow-xs';
   } else if(state === 'dirty'){
     txt.textContent = 'Ada Perubahan Belum Disimpan';
@@ -3840,11 +3852,12 @@ function updateAutoSaveBadgeStatus(state, timeStr = ''){
 
 function startAutoSaveTimer(){
   if(autoSaveInterval) clearInterval(autoSaveInterval);
+  // Periodic background check timer setiap 60 detik sebagai fallback keamanan
   autoSaveInterval = setInterval(async ()=>{
     if(isTimesheetDirty && !isSavingDraft && CURRENT_USER && CURRENT_USER.role === 'user' && rowState && rowState.some(r=>r.filled||r.holiday)){
       await saveToSheets('Draft', { isAutoSave: true });
     }
-  }, 30000);
+  }, 60000);
 }
 
 async function saveToSheets(status, options = {}){
@@ -3883,18 +3896,14 @@ async function saveToSheets(status, options = {}){
     if(!isAuto){
       showToast(status==='Draft'?'Draft timesheet berhasil disimpan ✅':'Timesheet berhasil diajukan ke Project Manager ✅','ok');
       updateAutoSaveBadgeStatus('saved', timeStr);
+      render(); // Hanya panggil render() jika SIMPAN MANUAL atau SUBMIT!
     } else {
       updateAutoSaveBadgeStatus('saved', timeStr);
+      // PENTING: Untuk AUTO SAVE, SAMA SEKALI TIDAK BOLEH PANGGIL render()!
+      // Hal ini mencegah DOM tabel ter-refresh / kursor hilang saat pengguna sedang mengetik di lapangan.
     }
 
     rowState.forEach(r => { if(r.filled) r.status = status; });
-
-    // FIX UX: Jangan re-render seluruh tabel jika user sedang mengetik di input/textarea
-    const activeEl = document.activeElement;
-    const isTypingInTable = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT') && activeEl.closest('#tsBody');
-    if(!isAuto || !isTypingInTable){
-      render();
-    }
     loadMySubmissionStatus();
   }catch(err){
     console.error('Error saving timesheet:', err);
