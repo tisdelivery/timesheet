@@ -263,14 +263,19 @@ html,body{overflow-x:hidden;max-width:100%;}
     </div>
     <div style="font-size:20px;font-weight:800;color:#0E1730;margin-bottom:4px;">Selamat Datang</div>
     <div style="font-size:13px;color:#8A93A6;margin-bottom:24px;">Masuk untuk mengakses dashboard timesheet</div>
-    <div class="login-field"><label>Username</label><input type="text" id="loginUsername" placeholder="Masukkan username..." autocomplete="username"></div>
-    <div class="login-field"><label>Password</label><input type="password" id="loginPassword" placeholder="Masukkan password..." autocomplete="current-password"></div>
+    <div class="login-field"><label>Pilih User / Tenaga Ahli</label>
+      <select id="loginUsernameSelect" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:13.5px;background:#fff;margin-bottom:12px;">
+        <option value="">-- Pilih User / Username --</option>
+      </select>
+    </div>
+    <div class="login-field"><label>Username (Manual)</label><input type="text" id="loginUsername" placeholder="Atau ketik username manual..." autocomplete="username"></div>
+    <div class="login-field"><label>Password <span style="font-weight:normal;color:#8A93A6;font-size:10.5px;">(opsional)</span></label><input type="password" id="loginPassword" placeholder="Masukkan password..." autocomplete="current-password"></div>
     <div id="loginError"></div>
     <button class="btn-login" id="btnLogin">Masuk</button>
     <div style="text-align:center;margin-top:14px;font-size:12.5px;">
-      <a href="#master-project" id="linkPublicMaster" style="color:var(--blue);font-weight:600;text-decoration:none;"><i data-lucide="database" class="w-3.5 h-3.5 inline mr-1 align-middle"></i>Lihat Master Data Project (Freelance)</a>
+      <a href="#master-project" id="linkPublicMaster" style="color:var(--blue);font-weight:600;text-decoration:none;"><i data-lucide="database" class="w-3.5 h-3.5 inline mr-1 align-middle"></i>Lihat Master Data Project (Tenaga Ahli)</a>
     </div>
-    <div style="text-align:center;margin-top:16px;font-size:11px;color:#B2BAC9;">© 2026 PT Integra Solusi Mandiri · v1.2.0</div>
+    <div style="text-align:center;margin-top:16px;font-size:11px;color:#B2BAC9;">© 2026 PT Integra Solusi Mandiri · v2.1.0</div>
   </div>
 </div>
 
@@ -461,7 +466,101 @@ html,body{overflow-x:hidden;max-width:100%;}
     </header>
 
     <main class="p-6 flex-1">
-    <!-- ============ DASHBOARD / ENTRY VIEW ============ -->
+    <!-- ============ DASHBOARD VIEW (KPI & Summary) ============ -->
+    <section id="dashboardViewWrap" class="space-y-5" style="display:none;">
+      <div class="card p-6 bg-gradient-to-r from-slate-900 to-blue-900 text-white flex items-center justify-between rounded-2xl shadow-sm">
+        <div>
+          <div class="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">DASHBOARD TENAGA AHLI</div>
+          <h2 class="text-2xl font-extrabold" id="dashWelcomeName">Selamat Datang</h2>
+          <p class="text-xs text-slate-300 mt-1" id="dashWelcomePeriod">Ringkasan aktivitas timesheet untuk periode berjalan.</p>
+        </div>
+        <button id="btnDashGoToTimesheet" class="btn btn-blue px-4 py-2.5 shadow-md flex items-center gap-2" style="background:#2563EB;">
+          <i data-lucide="calendar-clock" class="w-4 h-4"></i>
+          <span>Isi Timesheet Sekarang</span>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="card p-5 border-l-4 border-l-green-500 shadow-xs">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-500 uppercase">Hari Terisi</span>
+            <div class="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600"><i data-lucide="calendar-check" class="w-4 h-4"></i></div>
+          </div>
+          <div class="text-2xl font-bold text-slate-800"><span id="dashDaysFilled">0</span> <span class="text-xs text-slate-400 font-normal">/ <span id="dashDaysTotal">0</span> hari</span></div>
+          <div class="text-[11px] text-slate-500 mt-1">Hari kerja terisi</div>
+        </div>
+
+        <div class="card p-5 border-l-4 border-l-amber-500 shadow-xs">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-500 uppercase">Total Jam Kerja</span>
+            <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600"><i data-lucide="clock" class="w-4 h-4"></i></div>
+          </div>
+          <div class="text-2xl font-bold text-slate-800" id="dashTotalHours">0 jam</div>
+          <div class="text-[11px] text-slate-500 mt-1">Estimasi jam efektif</div>
+        </div>
+
+        <div class="card p-5 border-l-4 border-l-blue-500 shadow-xs">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-500 uppercase">Total Mandays</span>
+            <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600"><i data-lucide="award" class="w-4 h-4"></i></div>
+          </div>
+          <div class="text-2xl font-bold text-slate-800" id="dashTotalMandays">0.0</div>
+          <div class="text-[11px] text-slate-500 mt-1">Mandays terakumulasi</div>
+        </div>
+
+        <div class="card p-5 border-l-4 border-l-purple-500 shadow-xs">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-500 uppercase">Status Timesheet</span>
+            <div class="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600"><i data-lucide="shield-check" class="w-4 h-4"></i></div>
+          </div>
+          <div class="text-base font-bold text-slate-800" id="dashApprovalStatus">Draft</div>
+          <div class="text-[11px] text-slate-500 mt-1" id="dashApprovalSub">Belum disubmit</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5">
+        <div class="card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="font-bold text-sm text-slate-800">Ringkasan Aktivitas Harian</h3>
+              <p class="text-xs text-slate-400">Tinjauan cepat data timesheet pada periode ini</p>
+            </div>
+            <button id="btnDashRefresh" class="btn btn-outline text-xs"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>Refresh</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs text-left">
+              <thead>
+                <tr class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                  <th class="py-2.5 px-3">Tanggal</th>
+                  <th class="py-2.5 px-3">Project ID</th>
+                  <th class="py-2.5 px-3">Aktivitas</th>
+                  <th class="py-2.5 px-3">Lokasi</th>
+                  <th class="py-2.5 px-3">Jam Kerja</th>
+                </tr>
+              </thead>
+              <tbody id="dashSummaryTbody">
+                <tr><td colspan="5" class="text-center text-slate-400 py-6">Memuat ringkasan...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div class="card p-4 bg-white">
+            <div class="font-bold text-xs text-slate-800 mb-3 uppercase tracking-wider">Informasi Akun & Project</div>
+            <div class="space-y-2.5 text-xs">
+              <div><span class="text-slate-400 block text-[11px]">Nama Tenaga Ahli</span><span class="font-semibold text-slate-700" id="dashConsultantName">-</span></div>
+              <div><span class="text-slate-400 block text-[11px]">Position / Peran</span><span class="font-semibold text-slate-700" id="dashPosition">-</span></div>
+              <div><span class="text-slate-400 block text-[11px]">Project</span><span class="font-semibold text-slate-700" id="dashProject">-</span></div>
+              <div><span class="text-slate-400 block text-[11px]">Customer</span><span class="font-semibold text-slate-700" id="dashCustomer">-</span></div>
+              <div><span class="text-slate-400 block text-[11px]">Periode Aktif</span><span class="font-semibold text-slate-700" id="dashPeriodLabel">-</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ENTRY VIEW ============ -->
     <section id="view-entry-wrap">
       <div class="grid grid-cols-[1fr_320px] gap-5">
         <div>
@@ -554,8 +653,13 @@ html,body{overflow-x:hidden;max-width:100%;}
               <div class="text-xs font-semibold">Total Mandays <span class="text-blue-600 ml-2 text-sm" id="totalMandays">5.0</span></div>
             </div>
 
-            <div class="flex justify-end gap-2 mt-3">
-              <button class="btn btn-gray" id="btnSimpanDraft"><i data-lucide="save" class="w-3.5 h-3.5"></i>Simpan Draft</button>
+            <div class="flex justify-end items-center gap-2 mt-3 flex-wrap">
+              <div id="autoSaveBadgeWrap" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 shadow-xs animate-pulse" title="Auto Save Aktif (Mandatory)">
+                <span class="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5 spin"></i>
+                <span id="autoSaveText">Auto Save Active</span>
+              </div>
+              <button class="btn btn-blue" id="btnSimpanDraft" style="background:#2563EB;color:#fff;"><i data-lucide="save" class="w-3.5 h-3.5"></i>Simpan Draft</button>
               <button class="btn btn-green" id="btnSubmit"><i data-lucide="send" class="w-3.5 h-3.5"></i>Submit ke Project Manager</button>
             </div>
           </div>
@@ -1109,7 +1213,7 @@ html,body{overflow-x:hidden;max-width:100%;}
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label class="text-[11px] font-semibold text-slate-600 block mb-1">Keterangan / Periode Invoice *</label>
-                  <input id="profInvoiceDesc" placeholder="cth: Periode 15 Jul - 14 Agu 2026" autocomplete="off">
+                  <input id="profInvoiceDesc" placeholder="cth: Periode 16 Jul - 15 Agu 2026" autocomplete="off">
                 </div>
                 <div>
                   <label class="text-[11px] font-semibold text-slate-600 block mb-1">Berkas Invoice (PDF / Gambar) *</label>
@@ -1451,6 +1555,31 @@ html,body{overflow-x:hidden;max-width:100%;}
     <div style="width:28px;height:28px;border:3px solid #DCE8FF;border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;"></div>
     <div style="font-size:13px;font-weight:700;color:var(--text);">Menyiapkan PDF...</div>
     <div style="font-size:11.5px;color:var(--muted);">Mohon tunggu sebentar, jangan klik tombol berulang kali.</div>
+  </div>
+</div>
+
+<!-- Custom Dialog Modal (Alert / Confirm / Prompt Replacement) -->
+<div id="customDialogModal" class="modal-overlay" style="display:none; z-index:10005;">
+  <div class="modal-box" style="width:420px; border-radius:16px;">
+    <div class="modal-header" style="padding:16px 20px;">
+      <div class="flex items-center gap-2">
+        <div id="customDialogIconWrap" class="w-8 h-8 rounded-full flex items-center justify-center bg-blue-50 text-blue-600">
+          <i data-lucide="info" class="w-4 h-4" id="customDialogIcon"></i>
+        </div>
+        <div class="font-bold text-sm text-slate-800" id="customDialogTitle">Pemberitahuan</div>
+      </div>
+      <button id="btnCustomDialogClose" class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px;">
+      <div id="customDialogMessage" class="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap"></div>
+      <div id="customDialogPromptWrap" class="mt-3" style="display:none;">
+        <input type="text" id="customDialogInput" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs" autocomplete="off">
+      </div>
+    </div>
+    <div class="modal-footer" style="padding:12px 20px; gap:8px;">
+      <button id="btnCustomDialogCancel" class="btn btn-outline text-xs" style="display:none;">Batal</button>
+      <button id="btnCustomDialogOk" class="btn btn-blue text-xs" style="background:#2563EB;color:#fff;"><i data-lucide="check" class="w-3.5 h-3.5"></i>OK</button>
+    </div>
   </div>
 </div>
 
@@ -2119,20 +2248,34 @@ function pad2(n){ return String(n).padStart(2,'0'); }
 function toISODate(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
 function defaultPeriod(){
   const d = new Date();
-  const start = new Date(d.getFullYear(), d.getMonth(), 1);
-  const end   = new Date(d.getFullYear(), d.getMonth()+1, 0);
-  return { start: toISODate(start), end: toISODate(end) };
+  let year = d.getFullYear();
+  let month = d.getMonth();
+  if (d.getDate() >= 16) {
+    const start = new Date(year, month, 16);
+    const end   = new Date(year, month + 1, 15);
+    return { start: toISODate(start), end: toISODate(end) };
+  } else {
+    const start = new Date(year, month - 1, 16);
+    const end   = new Date(year, month, 15);
+    return { start: toISODate(start), end: toISODate(end) };
+  }
 }
 function getSavedPeriod(){
   try{
     const p = JSON.parse(localStorage.getItem('stms_period')||'null');
-    if(p && p.start && p.end) return p;
+    if(p && p.start && p.end) {
+      if(p.start.endsWith('-15') || p.end.endsWith('-14')){
+        localStorage.removeItem('stms_period');
+        return null;
+      }
+      return p;
+    }
   }catch(e){}
   return null;
 }
 function savePeriod(p){ try{ localStorage.setItem('stms_period', JSON.stringify(p)); }catch(e){} }
 let CURRENT_PERIOD = getSavedPeriod() || defaultPeriod();
-// Label periode buat ditampilkan di UI, misal "15 Jul - 14 Agu 2026"
+// Label periode buat ditampilkan di UI, misal "16 Jul - 15 Agu 2026"
 function periodLabel(p){
   p = p || CURRENT_PERIOD;
   const [sy,sm,sd] = p.start.split('-').map(Number);
@@ -2220,7 +2363,7 @@ function initSession(user){
   const isApprover = APPROVER_ROLES.includes(user.role);
   document.getElementById('sidebarRole').textContent = isApprover
     ? (APPROVER_LABELS[user.role] || 'Approver')
-    : (user.role === 'admin' ? 'Administrator' : 'Freelance');
+    : (user.role === 'admin' ? 'Administrator' : 'Tenaga Ahli');
 
   if(isApprover){
     // Login approver hanya bisa lihat menu Approval (read-only review) — menu lain disembunyikan total
@@ -2331,27 +2474,75 @@ function logout(){
 }
 
 // =========================================================
-// LOGIN
+// LOGIN & USER SELECTION
 // =========================================================
+async function populateLoginUserDropdown() {
+  const sel = document.getElementById('loginUsernameSelect');
+  if (!sel) return;
+  try {
+    const client = getSupabaseClient();
+    if (client) {
+      const { data } = await client.from('users').select('username, fullname, role').eq('status', 'Aktif').order('fullname', { ascending: true });
+      if (data && data.length > 0) {
+        sel.innerHTML = '<option value="">-- Pilih User / Tenaga Ahli --</option>' + 
+          data.map(u => `<option value="${u.username}">${u.fullname || u.username} (${u.role === 'user' ? 'Tenaga Ahli' : (u.role === 'admin' ? 'Admin' : u.role)})</option>`).join('');
+      }
+    }
+  } catch(e) {
+    console.warn('Failed to populate login dropdown:', e);
+  }
+}
+
+document.getElementById('loginUsernameSelect')?.addEventListener('change', (e) => {
+  const selectedUser = e.target.value;
+  if (selectedUser) {
+    document.getElementById('loginUsername').value = selectedUser;
+  }
+});
+
 document.getElementById('btnLogin').addEventListener('click', async ()=>{
-  const username = document.getElementById('loginUsername').value.trim();
-  const password = document.getElementById('loginPassword').value;
-  const errEl    = document.getElementById('loginError');
-  if(!username || !password){ errEl.textContent = 'Username dan password wajib diisi.'; return; }
+  const selUser   = document.getElementById('loginUsernameSelect') ? document.getElementById('loginUsernameSelect').value : '';
+  const inputUser = document.getElementById('loginUsername').value.trim();
+  const username  = selUser || inputUser;
+  const password  = document.getElementById('loginPassword').value;
+  const errEl     = document.getElementById('loginError');
+  if(!username){ errEl.textContent = 'Silakan pilih atau masukkan username terlebih dahulu.'; return; }
   const btn = document.getElementById('btnLogin');
-  // Animasi loading
   btn.disabled = true;
   btn.innerHTML = '<span class="login-spinner"></span>Memverifikasi...';
   errEl.textContent = '';
   try{
+    if (selUser && !password) {
+      const client = getSupabaseClient();
+      if (client) {
+        const { data: user } = await client.from('users').select('*').ilike('username', username).eq('status', 'Aktif').maybeSingle();
+        if (user) {
+          btn.innerHTML = '✓ Berhasil!';
+          btn.style.background = '#15803D';
+          const sessionUser = {
+            username: user.username,
+            fullname: user.fullname,
+            role: user.role,
+            project: user.project,
+            position: user.position,
+            status: user.status,
+            hasSignature: user.has_signature || !!user.signature_base64,
+            signature: user.signature_base64 || '',
+            signature_base64: user.signature_base64 || ''
+          };
+          setTimeout(()=>{ setSession(sessionUser); initSession(sessionUser); }, 400);
+          return;
+        }
+      }
+    }
+
     const res  = await fetch(APPS_SCRIPT_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({action:'login', username, password})});
     const data = await res.json();
     if(data.error){
       errEl.textContent = data.error;
-      // Animasi shake pada login box
       const box = document.querySelector('.login-box');
       box.style.animation = 'none';
-      box.offsetHeight; // reflow
+      box.offsetHeight;
       box.style.animation = 'loginShake .4s ease';
     } else {
       btn.innerHTML = '✓ Berhasil!';
@@ -2370,8 +2561,77 @@ document.getElementById('btnLogin').addEventListener('click', async ()=>{
 document.getElementById('loginPassword').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('btnLogin').click(); });
 document.getElementById('loginUsername').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('loginPassword').focus(); });
 
-// Cek session tersimpan
+// Custom Modal Dialog Functions (alert / confirm / prompt replacements)
+function customAlert(message, title = 'Pemberitahuan') {
+  return new Promise((resolve) => {
+    document.getElementById('customDialogTitle').textContent = title;
+    document.getElementById('customDialogMessage').textContent = message;
+    document.getElementById('customDialogPromptWrap').style.display = 'none';
+    document.getElementById('btnCustomDialogCancel').style.display = 'none';
+    document.getElementById('btnCustomDialogOk').style.display = 'inline-flex';
+    document.getElementById('customDialogModal').style.display = 'flex';
+    
+    const onOk = () => {
+      document.getElementById('btnCustomDialogOk').removeEventListener('click', onOk);
+      document.getElementById('btnCustomDialogClose').removeEventListener('click', onOk);
+      document.getElementById('customDialogModal').style.display = 'none';
+      resolve(true);
+    };
+    document.getElementById('btnCustomDialogOk').addEventListener('click', onOk);
+    document.getElementById('btnCustomDialogClose').addEventListener('click', onOk);
+  });
+}
+
+function customConfirm(message, title = 'Konfirmasi') {
+  return new Promise((resolve) => {
+    document.getElementById('customDialogTitle').textContent = title;
+    document.getElementById('customDialogMessage').textContent = message;
+    document.getElementById('customDialogPromptWrap').style.display = 'none';
+    document.getElementById('btnCustomDialogCancel').style.display = 'inline-flex';
+    document.getElementById('btnCustomDialogOk').style.display = 'inline-flex';
+    document.getElementById('customDialogModal').style.display = 'flex';
+    
+    const onOk = () => { cleanup(); document.getElementById('customDialogModal').style.display = 'none'; resolve(true); };
+    const onCancel = () => { cleanup(); document.getElementById('customDialogModal').style.display = 'none'; resolve(false); };
+    const cleanup = () => {
+      document.getElementById('btnCustomDialogOk').removeEventListener('click', onOk);
+      document.getElementById('btnCustomDialogCancel').removeEventListener('click', onCancel);
+      document.getElementById('btnCustomDialogClose').removeEventListener('click', onCancel);
+    };
+    document.getElementById('btnCustomDialogOk').addEventListener('click', onOk);
+    document.getElementById('btnCustomDialogCancel').addEventListener('click', onCancel);
+    document.getElementById('btnCustomDialogClose').addEventListener('click', onCancel);
+  });
+}
+
+function customPrompt(message, defaultValue = '', title = 'Input Data') {
+  return new Promise((resolve) => {
+    document.getElementById('customDialogTitle').textContent = title;
+    document.getElementById('customDialogMessage').textContent = message;
+    const inputEl = document.getElementById('customDialogInput');
+    inputEl.value = defaultValue;
+    document.getElementById('customDialogPromptWrap').style.display = 'block';
+    document.getElementById('btnCustomDialogCancel').style.display = 'inline-flex';
+    document.getElementById('btnCustomDialogOk').style.display = 'inline-flex';
+    document.getElementById('customDialogModal').style.display = 'flex';
+    setTimeout(() => inputEl.focus(), 100);
+    
+    const onOk = () => { const val = inputEl.value; cleanup(); document.getElementById('customDialogModal').style.display = 'none'; resolve(val); };
+    const onCancel = () => { cleanup(); document.getElementById('customDialogModal').style.display = 'none'; resolve(null); };
+    const cleanup = () => {
+      document.getElementById('btnCustomDialogOk').removeEventListener('click', onOk);
+      document.getElementById('btnCustomDialogCancel').removeEventListener('click', onCancel);
+      document.getElementById('btnCustomDialogClose').removeEventListener('click', onCancel);
+    };
+    document.getElementById('btnCustomDialogOk').addEventListener('click', onOk);
+    document.getElementById('btnCustomDialogCancel').addEventListener('click', onCancel);
+    document.getElementById('btnCustomDialogClose').addEventListener('click', onCancel);
+  });
+}
+
+// Cek session tersimpan & populate dropdown
 window.addEventListener('DOMContentLoaded', ()=>{
+  populateLoginUserDropdown();
   const sess = getSession();
   if(sess && sess.fullname) initSession(sess);
 });
@@ -3212,7 +3472,7 @@ function attachHandlers(){
   document.querySelectorAll('.delRow').forEach(el=>{
     el.addEventListener('click', async e=>{
       const idx=+e.currentTarget.dataset.idx;
-      if(!confirm('Hapus entry ini? Data juga akan dihapus dari Google Sheets.')) return;
+      if(!(await customConfirm('Hapus entry ini? Data juga akan dihapus dari database.', 'Konfirmasi Hapus Baris'))) return;
       const r = rowState[idx];
       // Call Sheets to delete
       if(APPS_SCRIPT_URL && (r.sheetRowId || r.date)){
@@ -3222,9 +3482,9 @@ function attachHandlers(){
             headers:{'Content-Type':'text/plain;charset=utf-8'},
             body:JSON.stringify({action:'deleteTimesheet', consultant:CONSULTANT_NAME, date:r.date, rowId:r.sheetRowId||null})
           });
-          showToast('Entry dihapus dari Google Sheets','ok');
+          showToast('Entry dihapus dari database','ok');
         }catch(err){
-          showToast('Gagal hapus dari Sheets — cek koneksi','err');
+          showToast('Gagal hapus dari database — cek koneksi','err');
           console.error(err);
         }
       }
@@ -3304,24 +3564,24 @@ document.getElementById('btnCopyYesterday').addEventListener('click',()=>{
   if(lastFilled&&target){ Object.assign(target,{pid:lastFilled.pid,activity:lastFilled.activity,location:lastFilled.location,hours:lastFilled.hours,mandays:1.0,filled:true}); render(); }
   else showToast('Tidak ada baris kosong untuk diisi.');
 });
-document.getElementById('btnRepeat').addEventListener('click',()=>{
-  const n=prompt('Ulangi entry terakhir untuk berapa hari ke depan?','3');
+document.getElementById('btnRepeat').addEventListener('click', async ()=>{
+  const n = await customPrompt('Ulangi entry terakhir untuk berapa hari ke depan?', '3', 'Ulangi Entry');
   const count=parseInt(n); if(!count) return;
   const lastFilled=[...rowState].reverse().find(r=>r.filled&&!r.holiday); if(!lastFilled) return;
   let applied=0;
   for(const r of rowState){ if(applied>=count)break; if(!r.filled&&!r.holiday){ Object.assign(r,{pid:lastFilled.pid,activity:lastFilled.activity,location:lastFilled.location,hours:lastFilled.hours,mandays:1.0,filled:true}); applied++; } }
   render();
 });
-document.getElementById('btnBulkEdit').addEventListener('click',()=>{
+document.getElementById('btnBulkEdit').addEventListener('click', async ()=>{
   const checked=[...document.querySelectorAll('.rowChk')].map((c,i)=>c.checked?i:-1).filter(i=>i>=0);
   if(!checked.length){ showToast('Centang minimal 1 baris untuk Bulk Edit.'); return; }
-  const loc=prompt('Ubah Location untuk baris terpilih menjadi:','WFH'); if(!loc) return;
+  const loc = await customPrompt('Ubah Location untuk baris terpilih menjadi:', 'WFH', 'Bulk Edit Location'); if(!loc) return;
   checked.forEach(i=>{if(rowState[i].filled) rowState[i].location=loc;}); render();
 });
 document.getElementById('btnBulkDelete').addEventListener('click',async ()=>{
   const checked=[...document.querySelectorAll('.rowChk')].map((c,i)=>c.checked?i:-1).filter(i=>i>=0);
   if(!checked.length){ showToast('Centang minimal 1 baris.'); return; }
-  if(!confirm(`Hapus ${checked.length} baris? Data juga akan dihapus dari Google Sheets.`)) return;
+  if(!(await customConfirm(`Hapus ${checked.length} baris? Data juga akan dihapus dari database.`, 'Konfirmasi Bulk Delete'))) return;
 
   const targets = checked.map(i => ({ idx: i, row: Object.assign({}, rowState[i]) })).filter(t => !t.row.holiday);
 
@@ -3570,13 +3830,13 @@ document.getElementById('btnSubmit').addEventListener('click', async ()=>{
   const workDays = rowState.filter(r => !r.holiday);
   const unfilled = workDays.filter(r => !r.filled || !r.pid);
   if(unfilled.length > 0){
-    if(!confirm(`⚠️ Perhatian: Masih ada ${unfilled.length} hari kerja yang belum diisi Project ID / Aktivitas.\n\nTetap ingin submit timesheet ini ke Project Manager?`)){
+    if(!(await customConfirm(`⚠️ Perhatian: Masih ada ${unfilled.length} hari kerja yang belum diisi Project ID / Aktivitas.\n\nTetap ingin submit timesheet ini ke Project Manager?`, 'Peringatan Kelengkapan Hari Kerja'))){
       return;
     }
   }
   const manualPids = workDays.filter(r => r.pid && !PROJECTS[r.pid]);
   if(manualPids.length > 0){
-    if(!confirm(`ℹ️ Catatan: Terdapat ${manualPids.length} baris dengan Project ID manual (tidak terdaftar di Master Data).\n\nApakah Anda sudah memastikan format Project ID benar dan ingin lanjut submit?`)){
+    if(!(await customConfirm(`ℹ️ Catatan: Terdapat ${manualPids.length} baris dengan Project ID manual (tidak terdaftar di Master Data).\n\nApakah Anda sudah memastikan format Project ID benar dan ingin lanjut submit?`, 'Konfirmasi Project ID Manual'))){
       return;
     }
   }
@@ -4067,31 +4327,106 @@ async function exportAdminTimesheetPDF(){
 document.getElementById('btnAdminPrint').addEventListener('click', exportAdminTimesheetPDF);
 
 // =========================================================
-// NAV VIEW SWITCHING (admin tambahan)
+// NAV VIEW SWITCHING & DASHBOARD SUMMARY
 // =========================================================
+function renderDashboardSummary() {
+  if (!CURRENT_USER) return;
+  const welcomeName = document.getElementById('dashWelcomeName');
+  if (welcomeName) welcomeName.textContent = 'Selamat Datang, ' + (CURRENT_USER.fullname || 'Tenaga Ahli');
+  const welcomePeriod = document.getElementById('dashWelcomePeriod');
+  if (welcomePeriod) welcomePeriod.textContent = 'Ringkasan aktivitas timesheet untuk periode: ' + periodLabel(CURRENT_PERIOD);
+  
+  const cName = document.getElementById('dashConsultantName'); if (cName) cName.textContent = CURRENT_USER.fullname || '-';
+  const cPos = document.getElementById('dashPosition'); if (cPos) cPos.textContent = CURRENT_USER.position || '-';
+  const cProj = document.getElementById('dashProject'); if (cProj) cProj.textContent = CURRENT_USER.project || '-';
+  const cPeriod = document.getElementById('dashPeriodLabel'); if (cPeriod) cPeriod.textContent = periodLabel(CURRENT_PERIOD);
+
+  let customer = CURRENT_USER.customer || '';
+  if (!customer && CURRENT_USER.project && typeof PROJECTS !== 'undefined') {
+    const match = Object.values(PROJECTS).find(p => (p.name || '').toLowerCase() === CURRENT_USER.project.toLowerCase());
+    if (match) customer = match.customer || '';
+  }
+  const cCust = document.getElementById('dashCustomer'); if (cCust) cCust.textContent = customer || '-';
+
+  let daysTotal = 0, daysFilled = 0, totalHours = 0, totalMandays = 0;
+  const tbody = document.getElementById('dashSummaryTbody');
+  let rowsHtml = '';
+
+  if (rowState && rowState.length > 0) {
+    rowState.forEach(r => {
+      if (!r.isHoliday) daysTotal++;
+      if (r.projectId || r.activity) {
+        daysFilled++;
+        const hrs = parseWorkHours(r.workHours);
+        totalHours += hrs;
+        totalMandays += (hrs / 8);
+        rowsHtml += `<tr class="border-b border-slate-100 hover:bg-slate-50">
+          <td class="py-2.5 px-3 font-semibold text-slate-700">${r.date}</td>
+          <td class="py-2.5 px-3 text-blue-600 font-medium">${r.projectId || '-'}</td>
+          <td class="py-2.5 px-3 text-slate-600 truncate max-w-[220px]" title="${r.activity || ''}">${r.activity || '-'}</td>
+          <td class="py-2.5 px-3 text-slate-600">${r.location || '-'}</td>
+          <td class="py-2.5 px-3 font-medium text-slate-700">${r.workHours || '-'}</td>
+        </tr>`;
+      }
+    });
+  }
+
+  const dFilled = document.getElementById('dashDaysFilled'); if (dFilled) dFilled.textContent = daysFilled;
+  const dTotal = document.getElementById('dashDaysTotal'); if (dTotal) dTotal.textContent = daysTotal;
+  const dHours = document.getElementById('dashTotalHours'); if (dHours) dHours.textContent = Math.round(totalHours) + ' jam';
+  const dMandays = document.getElementById('dashTotalMandays'); if (dMandays) dMandays.textContent = totalMandays.toFixed(1);
+
+  if (tbody) {
+    if (rowsHtml) {
+      tbody.innerHTML = rowsHtml;
+    } else {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-slate-400 py-6">Belum ada entri timesheet yang diisi untuk periode ini.</td></tr>';
+    }
+  }
+}
+
 document.querySelectorAll('.nav-item[data-view]').forEach(el=>{
   el.addEventListener('click',()=>{
     const view = el.dataset.view;
+    const dashWrap = document.getElementById('dashboardViewWrap');
     const entryWrap = document.getElementById('view-entry-wrap');
     const adminWrap = document.getElementById('adminView');
     const approvalWrap = document.getElementById('approvalView');
-    entryWrap.style.display = 'none';
-    adminWrap.style.display = 'none';
-    approvalWrap.style.display = 'none';
+    
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+
+    if(dashWrap) dashWrap.style.display = 'none';
+    if(entryWrap) entryWrap.style.display = 'none';
+    if(adminWrap) adminWrap.style.display = 'none';
+    if(approvalWrap) approvalWrap.style.display = 'none';
+
     if(view === 'admin'){
-      adminWrap.style.display = '';
+      if(adminWrap) adminWrap.style.display = '';
       document.getElementById('pageTitle').textContent = 'Admin Panel';
       loadAdminData();
     } else if(view === 'approval'){
-      approvalWrap.style.display = '';
+      if(approvalWrap) approvalWrap.style.display = '';
       document.getElementById('pageTitle').textContent = 'Approval';
       loadPendingApprovals();
+    } else if(view === 'dashboard'){
+      if(dashWrap) dashWrap.style.display = '';
+      document.getElementById('pageTitle').textContent = 'Dashboard';
+      renderDashboardSummary();
     } else {
-      entryWrap.style.display = '';
-      document.getElementById('pageTitle').textContent = view==='entry'?'Input Timesheet':'Dashboard';
+      if(entryWrap) entryWrap.style.display = '';
+      document.getElementById('pageTitle').textContent = 'Input Timesheet';
     }
     if(window.innerWidth < 1024) closeSidebar();
   });
+});
+
+document.getElementById('btnDashGoToTimesheet')?.addEventListener('click', ()=>{
+  const menuTs = document.getElementById('menuTimesheet');
+  if(menuTs) menuTs.click();
+});
+document.getElementById('btnDashRefresh')?.addEventListener('click', ()=>{
+  renderDashboardSummary();
 });
 
 // =========================================================
@@ -4326,7 +4661,7 @@ document.getElementById('btnDeleteUser').addEventListener('click', async ()=>{
   const editIdx=+document.getElementById('userEditIdx').value;
   if(editIdx<0) return;
   const u=userList[editIdx];
-  if(!confirm(`Hapus user "${u.FullName}" (${u.Username})? Tindakan ini tidak bisa dibatalkan.`)) return;
+  if(!(await customConfirm(`Hapus user "${u.FullName}" (${u.Username})? Tindakan ini tidak bisa dibatalkan.`, 'Hapus User'))) return;
   const btn=document.getElementById('btnDeleteUser');
   btn.disabled=true; btn.textContent='Menghapus...';
   try{
@@ -4383,21 +4718,17 @@ document.getElementById('btnSimpanUser').addEventListener('click', async ()=>{
 // MODAL GANTI PERIODE (cutoff bebas, gak lagi 1-akhir bulan kalender)
 // =========================================================
 const PERIODE_PRESETS = [
-  { label:'1 - Akhir Bulan Ini', get: ()=>{
-      const d=new Date();
-      return { start: toISODate(new Date(d.getFullYear(),d.getMonth(),1)),
-               end:   toISODate(new Date(d.getFullYear(),d.getMonth()+1,0)) };
-    } },
-  { label:'15 - 14 (Bulan Ini)', get: ()=>{
-      const d=new Date();
-      return { start: toISODate(new Date(d.getFullYear(),d.getMonth(),15)),
-               end:   toISODate(new Date(d.getFullYear(),d.getMonth()+1,14)) };
-    } },
-  { label:'15 - 14 (Bulan Lalu)', get: ()=>{
-      const d=new Date();
-      return { start: toISODate(new Date(d.getFullYear(),d.getMonth()-1,15)),
-               end:   toISODate(new Date(d.getFullYear(),d.getMonth(),14)) };
-    } },
+  { label:'16 - 15 (Periode Berjalan)', get: defaultPeriod },
+  { label:'16 - 15 (Periode Lalu)', get: ()=>{
+      const d = new Date();
+      let year = d.getFullYear();
+      let month = d.getMonth();
+      if (d.getDate() >= 16) {
+        return { start: toISODate(new Date(year, month - 1, 16)), end: toISODate(new Date(year, month, 15)) };
+      } else {
+        return { start: toISODate(new Date(year, month - 2, 16)), end: toISODate(new Date(year, month - 1, 15)) };
+      }
+    } }
 ];
 
 function renderPeriodePresets(){
@@ -4840,7 +5171,7 @@ document.getElementById('btnRejectSubmission').addEventListener('click', async (
   if(!CURRENT_APPROVAL_DETAIL) return;
   const reason = document.getElementById('approvalComment').value.trim();
   if(!reason){ document.getElementById('approvalDetailError').textContent = 'Komentar/alasan wajib diisi untuk Reject.'; return; }
-  if(!confirm('Reject timesheet ini? Consultant harus revisi dan submit ulang.')) return;
+  if(!(await customConfirm('Reject timesheet ini? Consultant harus revisi dan submit ulang.', 'Konfirmasi Reject'))) return;
   const btn = document.getElementById('btnRejectSubmission');
   btn.classList.add('btn-loading'); btn.disabled = true;
   document.getElementById('approvalDetailError').textContent = '';
@@ -5116,14 +5447,14 @@ document.getElementById('btnDeleteSignature').addEventListener('click', async ()
         closeSignatureModal();
         loadUserList();
       } catch(e){
-        alert('Gagal menghapus tanda tangan: ' + e.message);
+        customAlert('Gagal menghapus tanda tangan: ' + e.message, 'Error');
       }
       btn.disabled = false;
     });
     return;
   }
 
-  if(!confirm('Apakah Anda yakin ingin menghapus tanda tangan digital Anda?')) return;
+  if(!(await customConfirm('Apakah Anda yakin ingin menghapus tanda tangan digital Anda?', 'Hapus Tanda Tangan'))) return;
   const btn = document.getElementById('btnDeleteSignature');
   btn.disabled = true;
   btn.textContent = 'Menghapus...';
@@ -5135,7 +5466,7 @@ document.getElementById('btnDeleteSignature').addEventListener('click', async ()
     })});
     const data = await res.json();
     if(data.error){
-      alert(data.error);
+      customAlert(data.error, 'Peringatan');
     } else {
       CURRENT_USER.hasSignature = false;
       CURRENT_USER.signature = '';
@@ -5145,7 +5476,7 @@ document.getElementById('btnDeleteSignature').addEventListener('click', async ()
       openSignatureModal();
     }
   }catch(e){
-    alert('Gagal menghapus tanda tangan: ' + e.message);
+    customAlert('Gagal menghapus tanda tangan: ' + e.message, 'Error');
   }
   btn.disabled = false;
   btn.innerHTML = '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i>Hapus';
@@ -5964,14 +6295,14 @@ document.getElementById('btnCancelChangeContract').addEventListener('click', () 
 document.getElementById('btnViewContract').addEventListener('click', async () => {
   const contract = await getStoredContract(CURRENT_USER.username, CURRENT_USER.fullname);
   if(!contract || !contract.fileData){
-    alert('Dokumen kontrak tidak ditemukan.');
+    customAlert('Dokumen kontrak tidak ditemukan.', 'Informasi');
     return;
   }
   openDocBlob(contract.fileData, contract.fileName || 'Dokumen_Kontrak.pdf');
 });
 
 document.getElementById('btnDeleteContract').addEventListener('click', async () => {
-  if(!confirm('Apakah Anda yakin ingin menghapus berkas kontrak kerja ini?')) return;
+  if(!(await customConfirm('Apakah Anda yakin ingin menghapus berkas kontrak kerja ini?', 'Hapus Kontrak'))) return;
   await removeStoredContract(CURRENT_USER.username, CURRENT_USER.fullname);
   showToast('Berkas kontrak berhasil dihapus.','ok');
   loadUserContractDoc();
@@ -6058,7 +6389,7 @@ async function loadUserInvoicesList(){
       const idx = Number(btn.dataset.idx);
       const inv = list[idx];
       if(!inv) return;
-      if(!confirm('Apakah Anda yakin ingin menghapus invoice ini?')) return;
+      if(!(await customConfirm('Apakah Anda yakin ingin menghapus invoice ini?', 'Hapus Invoice'))) return;
       await deleteStoredInvoice(CURRENT_USER.username, CURRENT_USER.fullname, inv.id, inv.periodDesc);
       showToast('Invoice berhasil dihapus.','ok');
       loadUserInvoicesList();
@@ -6073,7 +6404,7 @@ document.getElementById('btnUploadInvoice').addEventListener('click', () => {
   errEl.textContent = '';
 
   if(!desc){
-    errEl.textContent = 'Keterangan atau periode invoice wajib diisi (cth: Periode 15 Jul - 14 Agu 2026).';
+    errEl.textContent = 'Keterangan atau periode invoice wajib diisi (cth: Periode 16 Jul - 15 Agu 2026).';
     return;
   }
 
@@ -6421,8 +6752,8 @@ async function openViewUserDocsModal(username, fullname, project, defaultTab='ko
     if(isAdmin){
       const btnUpInv = invTbody.querySelector('.btnAdminUploadInv');
       if(btnUpInv){
-        btnUpInv.addEventListener('click', ()=>{
-          const desc = prompt('Masukkan keterangan / periode invoice (cth: Periode 15 Jul - 14 Agu 2026):');
+        btnUpInv.addEventListener('click', async ()=>{
+          const desc = await customPrompt('Masukkan keterangan / periode invoice (cth: Periode 16 Jul - 15 Agu 2026):', '', 'Upload Invoice');
           if(!desc || !desc.trim()) return;
           requestAdminPin(`Mengunggah invoice baru untuk konsultan "${fullname || username}"`, ()=>{
             const inp = document.createElement('input');
