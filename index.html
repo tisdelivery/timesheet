@@ -2417,7 +2417,12 @@ function initSession(user){
         // Default filter periode admin ikut periode aktif, biar gak nge-load seluruh histori
         document.getElementById('adminFilterStart').value = CURRENT_PERIOD.start;
         document.getElementById('adminFilterEnd').value   = CURRENT_PERIOD.end;
+        if(user.role === 'user'){
+          startAutoSaveTimer();
+        }
         loadAdminData();
+      } else if(user.role === 'user'){
+        startAutoSaveTimer();
       }
     }, 400);
   }).catch(()=>showLoadingScreen(false));
@@ -3418,15 +3423,28 @@ function attachHandlers(){
       inp.addEventListener('touchstart', e=>{ setTimeout(()=>showFn(e.target, +e.target.dataset.idx), 100); }, {passive:true});
       inp.addEventListener('input', e=>{
         if(stateProp) rowState[+e.target.dataset.idx][stateProp] = e.target.value;
+        markTimesheetDirty();
         if(e.target.tagName && e.target.tagName.toLowerCase() === 'textarea') {
           e.target.style.height = 'auto';
           e.target.style.height = Math.max(34, e.target.scrollHeight) + 'px';
         }
         showFn(e.target, +e.target.dataset.idx);
       });
-      if(stateProp==='location'||stateProp==='hours'||stateProp==='activity'){
-        inp.addEventListener('change', e=>{ rowState[+e.target.dataset.idx][stateProp] = e.target.value; });
+      if(stateProp==='location'||stateProp==='hours'||stateProp==='activity'||stateProp==='pid'){
+        inp.addEventListener('change', e=>{ 
+          if(stateProp) rowState[+e.target.dataset.idx][stateProp] = e.target.value; 
+          markTimesheetDirty();
+        });
       }
+      inp.addEventListener('blur', ()=>{
+        if(isTimesheetDirty && !isSavingDraft && CURRENT_USER && CURRENT_USER.role === 'user'){
+          setTimeout(()=>{
+            if(isTimesheetDirty && !isSavingDraft && document.activeElement !== inp){
+              saveToSheets('Draft', { isAutoSave: true });
+            }
+          }, 1500);
+        }
+      });
     });
   }
 
@@ -3791,23 +3809,64 @@ function buildTimesheetPayload(status){
   });
 }
 
-async function saveToSheets(status){
-  if(!APPS_SCRIPT_URL){ showToast('Belum tersambung ke Google Sheets.','err'); return; }
+let isTimesheetDirty = false;
+let isSavingDraft = false;
+let autoSaveInterval = null;
+
+function markTimesheetDirty(){
+  isTimesheetDirty = true;
+  updateAutoSaveBadgeStatus('dirty');
+}
+
+function updateAutoSaveBadgeStatus(state, timeStr = ''){
+  const txt = document.getElementById('autoSaveText');
+  const badge = document.getElementById('autoSaveBadgeWrap');
+  if(!txt || !badge) return;
+
+  if(state === 'saving'){
+    txt.textContent = 'Menyimpan Draft...';
+    badge.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 shadow-xs animate-pulse';
+  } else if(state === 'saved'){
+    txt.textContent = timeStr ? `Draft Tersimpan (${timeStr})` : 'Draft Tersimpan (Otomatis)';
+    badge.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-green-600 shadow-xs';
+  } else if(state === 'dirty'){
+    txt.textContent = 'Ada Perubahan Belum Disimpan';
+    badge.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-amber-600 shadow-xs animate-pulse';
+  } else {
+    txt.textContent = 'Auto Save Active';
+    badge.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 shadow-xs';
+  }
+}
+
+function startAutoSaveTimer(){
+  if(autoSaveInterval) clearInterval(autoSaveInterval);
+  autoSaveInterval = setInterval(async ()=>{
+    if(isTimesheetDirty && !isSavingDraft && CURRENT_USER && CURRENT_USER.role === 'user' && rowState && rowState.some(r=>r.filled||r.holiday)){
+      await saveToSheets('Draft', { isAutoSave: true });
+    }
+  }, 30000);
+}
+
+async function saveToSheets(status, options = {}){
+  const isAuto = options.isAutoSave || false;
+  if(isSavingDraft) return;
+  if(!APPS_SCRIPT_URL){
+    if(!isAuto) showToast('Belum tersambung ke Google Sheets / Supabase.','err');
+    return;
+  }
+
+  isSavingDraft = true;
+  if(isAuto) updateAutoSaveBadgeStatus('saving');
+
   const rows = buildTimesheetPayload(status);
   try{
     const res  = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'saveTimesheet',rows})});
     const data = await res.json();
-    // Simpan rowIds yang dikembalikan backend ke rowState
     if(data.rowIds && Array.isArray(data.rowIds)){
       let ri=0;
       rowState.forEach(r=>{ if((r.filled||r.holiday) && ri<data.rowIds.length){ r.sheetRowId=data.rowIds[ri++]||r.sheetRowId; } });
     }
-    // Catatan: dulu ada 1 request tambahan ke action 'submitTimesheet' di sini,
-    // tapi action itu gak pernah di-handle di Code.gs (selalu balas "Action tidak
-    // dikenal") — dihapus karena Status per baris sudah ikut tersimpan lewat
-    // saveTimesheet di atas (lihat buildTimesheetPayload(status)).
     if(status === 'Submitted'){
-      // Buat/refresh record di sheet Submissions supaya masuk antrian Approval PM
       await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({
         action:'submitForApproval',
         consultant: CONSULTANT_NAME,
@@ -3816,22 +3875,45 @@ async function saveToSheets(status){
         periodEnd: CURRENT_PERIOD.end,
       })}).catch(()=>{});
     }
-    showToast(status==='Draft'?'Draft timesheet berhasil disimpan ✅':'Timesheet berhasil diajukan ke Project Manager ✅','ok');
+
+    isTimesheetDirty = false;
+    const now = new Date();
+    const timeStr = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+
+    if(!isAuto){
+      showToast(status==='Draft'?'Draft timesheet berhasil disimpan ✅':'Timesheet berhasil diajukan ke Project Manager ✅','ok');
+      updateAutoSaveBadgeStatus('saved', timeStr);
+    } else {
+      updateAutoSaveBadgeStatus('saved', timeStr);
+    }
+
     rowState.forEach(r => { if(r.filled) r.status = status; });
-    render();
+
+    // FIX UX: Jangan re-render seluruh tabel jika user sedang mengetik di input/textarea
+    const activeEl = document.activeElement;
+    const isTypingInTable = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT') && activeEl.closest('#tsBody');
+    if(!isAuto || !isTypingInTable){
+      render();
+    }
     loadMySubmissionStatus();
   }catch(err){
-    console.error(err); showToast('Gagal menyimpan timesheet. Silakan coba lagi.','err');
+    console.error('Error saving timesheet:', err);
+    if(!isAuto) showToast('Gagal menyimpan timesheet. Silakan coba lagi.','err');
+    if(isAuto) updateAutoSaveBadgeStatus('dirty');
+  }finally{
+    isSavingDraft = false;
   }
 }
 
 document.getElementById('btnSimpanDraft').addEventListener('click', async ()=>{
   const btn = document.getElementById('btnSimpanDraft');
-  if(btn.classList.contains('btn-loading')) return;
+  if(btn.classList.contains('btn-loading') || isSavingDraft) return;
   btn.classList.add('btn-loading');
+  btn.disabled = true;
   btn.innerHTML = '<i data-lucide="save" class="w-3.5 h-3.5"></i>Menyimpan...';
-  await saveToSheets('Draft');
+  await saveToSheets('Draft', { isAutoSave: false });
   btn.classList.remove('btn-loading');
+  btn.disabled = false;
   btn.innerHTML = '<i data-lucide="save" class="w-3.5 h-3.5"></i>Simpan Draft';
   lucide.createIcons();
 });
