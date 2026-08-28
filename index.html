@@ -468,13 +468,13 @@ html,body{overflow-x:hidden;max-width:100%;}
     <main class="p-6 flex-1">
     <!-- ============ DASHBOARD VIEW (KPI & Summary) ============ -->
     <section id="dashboardViewWrap" class="space-y-5" style="display:none;">
-      <div class="card p-6 bg-gradient-to-r from-slate-900 to-blue-900 text-white flex items-center justify-between rounded-2xl shadow-sm">
+      <div class="card p-5 sm:p-6 bg-gradient-to-r from-slate-900 to-blue-900 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl shadow-sm">
         <div>
           <div class="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">DASHBOARD TENAGA AHLI</div>
-          <h2 class="text-2xl font-extrabold" id="dashWelcomeName">Selamat Datang</h2>
+          <h2 class="text-xl sm:text-2xl font-extrabold" id="dashWelcomeName">Selamat Datang</h2>
           <p class="text-xs text-slate-300 mt-1" id="dashWelcomePeriod">Ringkasan aktivitas timesheet untuk periode berjalan.</p>
         </div>
-        <button id="btnDashGoToTimesheet" class="btn btn-blue px-4 py-2.5 shadow-md flex items-center gap-2" style="background:#2563EB;">
+        <button id="btnDashGoToTimesheet" class="btn btn-blue px-4 py-2.5 shadow-md flex items-center justify-center gap-2 w-full sm:w-auto shrink-0" style="background:#2563EB;">
           <i data-lucide="calendar-clock" class="w-4 h-4"></i>
           <span>Isi Timesheet Sekarang</span>
         </button>
