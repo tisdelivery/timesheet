@@ -1532,9 +1532,14 @@
                         <div class="dd-sep"></div>
                         <div class="dd-item" id="btnExportPDFBlank2" style="color:#2563EB;"><i data-lucide="file-edit"
                             style="color:#2563EB;"></i>Export PDF Polos (TTD Manual)</div>
-                        <div class="dd-item" id="btnImportExcel"><i data-lucide="upload"></i>Import dari Excel</div>
-                        <div class="dd-item" id="btnExport"><i data-lucide="download"></i>Export Excel</div>
+                        <div class="dd-sep"></div>
+                        <div class="dd-item" id="btnDownloadTemplate" style="color:#10B981;"><i data-lucide="file-spreadsheet"
+                            style="color:#10B981;"></i>Download Template Excel</div>
+                        <div class="dd-item" id="btnImportExcel" style="color:#2563EB;"><i data-lucide="upload"
+                            style="color:#2563EB;"></i>Import dari Excel</div>
+                        <div class="dd-item" id="btnExport"><i data-lucide="download"></i>Export Excel (Hasil)</div>
                       </div>
+                      <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display:none;">
                     </div>
                     <div class="dd-wrap">
                       <button class="btn btn-outline" id="btnExportPdfMenu" style="color:#DC2626;"><i
@@ -2805,6 +2810,63 @@
         <button id="btnModalRevisiCancel" class="btn btn-outline">Batal</button>
         <button id="btnModalRevisiConfirm" class="btn btn-blue"><i data-lucide="pencil" class="w-3.5 h-3.5"></i>Buka
           untuk Revisi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PREVIEW IMPORT EXCEL MODAL ============ -->
+  <div id="modalImportPreview" class="modal-overlay" style="display:none; z-index:10002;">
+    <div class="modal-box" style="width:780px; max-width:95vw; max-height:90vh; display:flex; flex-direction:column;">
+      <div class="modal-header">
+        <div>
+          <div class="font-bold text-base flex items-center gap-2">
+            <i data-lucide="file-spreadsheet" class="w-5 h-5 text-blue-600"></i>
+            <span>Preview Import Timesheet dari Excel</span>
+          </div>
+          <div class="text-[11.5px] text-slate-400 mt-0.5" id="importPreviewSubtitle">Tinjau data sebelum diterapkan ke tabel timesheet</div>
+        </div>
+        <button id="btnModalImportClose"
+          class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="modal-body" style="overflow-y:auto; flex:1; padding:16px 20px;">
+        <!-- Status summary banner -->
+        <div id="importStatsBanner" class="p-3.5 rounded-xl mb-3 flex items-center justify-between text-xs bg-blue-50 border border-blue-100 text-blue-900">
+          <div class="flex items-center gap-2">
+            <i data-lucide="info" class="w-4 h-4 text-blue-600 shrink-0"></i>
+            <span id="importStatsText">Memeriksa data...</span>
+          </div>
+          <div class="flex items-center gap-2" id="importStatsBadges"></div>
+        </div>
+
+        <div class="overflow-x-auto border border-slate-200 rounded-xl" style="max-height:360px;">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 sticky top-0 bg-white shadow-xs">
+              <tr>
+                <th class="py-2.5 px-3">Tanggal</th>
+                <th class="py-2.5 px-3">Project ID</th>
+                <th class="py-2.5 px-3">Aktivitas</th>
+                <th class="py-2.5 px-3">Lokasi</th>
+                <th class="py-2.5 px-3">Jam Kerja</th>
+                <th class="py-2.5 px-3">Status</th>
+              </tr>
+            </thead>
+            <tbody id="importPreviewTbody">
+              <tr><td colspan="6" class="text-center py-6 text-slate-400">Belum ada data</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
+        <span class="text-[11.5px] text-slate-400">Data lama pada tanggal yang sama akan ditimpa.</span>
+        <div class="flex gap-2">
+          <button id="btnModalImportCancel" class="btn btn-outline">Batal</button>
+          <button id="btnModalImportApply" class="btn btn-blue flex items-center gap-1.5">
+            <i data-lucide="check" class="w-4 h-4"></i>
+            <span>Terapkan ke Timesheet</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -5199,6 +5261,485 @@
       URL.revokeObjectURL(url);
     }
     document.getElementById('btnExport').addEventListener('click', exportTimesheet);
+
+    // =========================================================
+    // DOWNLOAD TEMPLATE & IMPORT EXCEL DENGAN DROPDOWN VALIDATION
+    // =========================================================
+    async function downloadExcelTemplate() {
+      try {
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'Timesheet Management System TIS';
+        wb.created = new Date();
+
+        // Sheet 1: Template Pengisian
+        const ws = wb.addWorksheet('Timesheet Template', {
+          views: [{ showGridLines: true }]
+        });
+
+        // Sheet 2: Data Master Referensi (untuk dropdown validasi)
+        const wsMaster = wb.addWorksheet('MasterData', { state: 'visible' });
+
+        // Kumpulkan master data project, lokasi, jam kerja, dan aktivitas
+        const projectList = Object.keys(PROJECTS || {});
+        if (!projectList.length && typeof MASTER_PROJECTS !== 'undefined' && Array.isArray(MASTER_PROJECTS)) {
+          MASTER_PROJECTS.forEach(p => { if (p.ProjectID) projectList.push(p.ProjectID); });
+        }
+        if (!projectList.length) {
+          projectList.push('PROJ-TIS-01', 'PROJ-TIS-02', 'INTERNAL-NON-PROJECT');
+        }
+
+        const locList = (LOCATIONS && LOCATIONS.length) ? [...LOCATIONS] : ['The Prasada', 'WFH', 'WFO', 'Client Office', 'Regional Office'];
+        const hrsList = (HOURS_PRESETS && HOURS_PRESETS.length) ? [...HOURS_PRESETS] : ['08:30 - 17:30', '08:00 - 17:00', '09:00 - 18:00', '08:30 - 12:30'];
+        const actList = (ACTIVITIES && ACTIVITIES.length) ? [...ACTIVITIES] : [
+          'Monitoring Progress, collect data supply BAUT, submit PRIMA, communicate with FICO',
+          'Review BAUT', 'Review BAPP', 'Review BAST', 'Meeting', 'Invoice'
+        ];
+
+        // Isi Sheet MasterData
+        wsMaster.columns = [
+          { header: 'Project ID', key: 'pid', width: 25 },
+          { header: 'Lokasi', key: 'loc', width: 20 },
+          { header: 'Jam Kerja', key: 'hrs', width: 18 },
+          { header: 'Aktivitas', key: 'act', width: 45 }
+        ];
+        wsMaster.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        wsMaster.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF475569' } };
+
+        const maxMasterRows = Math.max(projectList.length, locList.length, hrsList.length, actList.length);
+        for (let i = 0; i < maxMasterRows; i++) {
+          wsMaster.addRow([
+            projectList[i] || '',
+            locList[i] || '',
+            hrsList[i] || '',
+            actList[i] || ''
+          ]);
+        }
+
+        // Set layout & header di Sheet Template
+        ws.columns = [
+          { width: 6 },  // A: No
+          { width: 15 }, // B: Tanggal
+          { width: 12 }, // C: Hari
+          { width: 25 }, // D: Project ID
+          { width: 50 }, // E: Deskripsi Aktivitas
+          { width: 20 }, // F: Lokasi
+          { width: 18 }  // G: Jam Kerja
+        ];
+
+        // Header Banner Atas
+        ws.mergeCells('A1:G1');
+        const titleCell = ws.getCell('A1');
+        titleCell.value = 'TEMPLATE IMPORT TIMESHEET';
+        titleCell.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
+        titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E9C' } };
+        titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+        ws.getRow(1).height = 28;
+
+        const consultantName = (CURRENT_USER && CURRENT_USER.fullname) || CONSULTANT_NAME || '-';
+        const infoRows = [
+          ['Nama Tenaga Ahli', consultantName],
+          ['Periode Timesheet', periodLabel(CURRENT_PERIOD)],
+          ['Petunjuk Pengisian', 'Pilih Project ID, Lokasi, dan Jam Kerja dari dropdown di tiap sel. Jangan ubah format tanggal.']
+        ];
+
+        infoRows.forEach((item, idx) => {
+          const rIdx = idx + 2;
+          ws.getCell(`A${rIdx}`).value = item[0];
+          ws.getCell(`A${rIdx}`).font = { bold: true, size: 10 };
+          ws.getCell(`B${rIdx}`).value = item[1];
+          ws.mergeCells(`B${rIdx}:G${rIdx}`);
+          ws.getCell(`B${rIdx}`).font = { size: 10 };
+          if (idx === 2) {
+            ws.getCell(`B${rIdx}`).font = { italic: true, size: 9.5, color: { argb: 'FF64748B' } };
+          }
+        });
+
+        // Baris Header Tabel (Row 6)
+        const headerRowIdx = 6;
+        const colHeaders = ['No', 'Tanggal', 'Hari', 'Project ID *', 'Deskripsi Aktivitas *', 'Lokasi *', 'Jam Kerja *'];
+        const hRow = ws.getRow(headerRowIdx);
+        colHeaders.forEach((h, i) => {
+          const cell = hRow.getCell(i + 1);
+          cell.value = h;
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
+        });
+        hRow.height = 24;
+
+        // Baris Data berdasarkan tanggal periode berjalan (CURRENT_PERIOD)
+        const days = (rowState && rowState.length) ? rowState : buildEmptyRowState(CURRENT_PERIOD);
+        const startDataRow = 7;
+
+        days.forEach((r, idx) => {
+          const curRowIdx = startDataRow + idx;
+          const row = ws.getRow(curRowIdx);
+          const isHol = r.holiday;
+
+          row.getCell(1).value = idx + 1; // No
+          row.getCell(2).value = r.date;   // Tanggal (YYYY-MM-DD)
+          row.getCell(3).value = r.day;    // Hari
+
+          if (isHol) {
+            row.getCell(4).value = '-';
+            row.getCell(5).value = r.holidayName || 'Hari Libur';
+            row.getCell(6).value = '-';
+            row.getCell(7).value = '-';
+          } else {
+            row.getCell(4).value = r.pid || '';
+            row.getCell(5).value = r.activity || '';
+            row.getCell(6).value = r.location || 'The Prasada';
+            row.getCell(7).value = r.hours || '08:30 - 17:30';
+
+            // Dropdown Validasi dari Sheet MasterData
+            row.getCell(4).dataValidation = {
+              type: 'list',
+              allowBlank: true,
+              formulae: [`MasterData!$A$2:$A$${projectList.length + 1}`]
+            };
+
+            row.getCell(6).dataValidation = {
+              type: 'list',
+              allowBlank: true,
+              formulae: [`MasterData!$B$2:$B$${locList.length + 1}`]
+            };
+
+            row.getCell(7).dataValidation = {
+              type: 'list',
+              allowBlank: true,
+              formulae: [`MasterData!$C$2:$C$${hrsList.length + 1}`]
+            };
+          }
+
+          // Border & Format Warna
+          row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            if (colNumber <= 7) {
+              cell.border = {
+                top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+              };
+              cell.alignment = { vertical: 'middle', horizontal: colNumber <= 3 || colNumber === 7 ? 'center' : 'left' };
+              if (isHol) {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+                cell.font = { color: { argb: 'FF94A3B8' }, italic: true };
+              } else if (idx % 2 === 1) {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+              }
+            }
+          });
+          row.height = 22;
+        });
+
+        const buf = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Template_Timesheet_${CURRENT_PERIOD.start}_sd_${CURRENT_PERIOD.end}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('Template Excel berhasil diunduh. Silakan isi dan import kembali.', 'ok');
+      } catch (err) {
+        console.error('downloadExcelTemplate error:', err);
+        showToast('Gagal membuat template Excel: ' + err.message, 'err');
+      }
+    }
+
+    // Helper Universal: Konversi berbagai jenis format tanggal Excel ke YYYY-MM-DD
+    function parseExcelDate(val) {
+      if (val === null || val === undefined || val === '') return null;
+      if (typeof val === 'object') {
+        if (val instanceof Date) {
+          if (isNaN(val.getTime())) return null;
+          const y = val.getFullYear();
+          const m = String(val.getMonth() + 1).padStart(2, '0');
+          const d = String(val.getDate()).padStart(2, '0');
+          return `${y}-${m}-${d}`;
+        }
+        if (val.result !== undefined) val = val.result;
+        else if (val.text !== undefined) val = val.text;
+        else if (val.richText && Array.isArray(val.richText)) val = val.richText.map(t => t.text).join('');
+      }
+
+      // Format serial number Excel (contoh: 45289)
+      if (typeof val === 'number' && val > 30000 && val < 60000) {
+        const utcDays = Math.floor(val - 25569);
+        const date = new Date(utcDays * 86400 * 1000);
+        const y = date.getUTCFullYear();
+        const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(date.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+
+      let str = String(val).trim();
+      if (!str) return null;
+
+      // Format YYYY-MM-DD
+      if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(str)) {
+        const p = str.split('-');
+        return `${p[0]}-${p[1].padStart(2, '0')}-${p[2].padStart(2, '0')}`;
+      }
+
+      // Format DD/MM/YYYY atau DD-MM-YYYY
+      if (/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}$/.test(str)) {
+        const p = str.split(/[\/\-\.]/);
+        return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+      }
+
+      // Format Teks Bulan (Indonesia & English)
+      const monthMap = {
+        jan: 1, januari: 1, january: 1,
+        feb: 2, februari: 2, february: 2,
+        mar: 3, maret: 3, march: 3,
+        apr: 4, april: 4,
+        mei: 5, may: 5,
+        jun: 6, juni: 6, june: 6,
+        jul: 7, juli: 7, july: 7,
+        agu: 8, agt: 8, agustus: 8, aug: 8, august: 8,
+        sep: 9, september: 9,
+        okt: 10, oktober: 10, oct: 10, october: 10,
+        nov: 11, november: 11,
+        des: 12, desember: 12, dec: 12, december: 12
+      };
+      const parts = str.split(/[\s,\-\/\.]+/);
+      if (parts.length >= 3) {
+        let d = parseInt(parts[0], 10);
+        let mStr = parts[1].toLowerCase();
+        let y = parseInt(parts[2], 10);
+        if (isNaN(d) || isNaN(y)) {
+          if (parseInt(parts[2], 10) > 1000 && monthMap[parts[0].toLowerCase()]) {
+            mStr = parts[0].toLowerCase();
+            d = parseInt(parts[1], 10);
+          }
+        }
+        if (monthMap[mStr] && d >= 1 && d <= 31 && y >= 2000 && y <= 2100) {
+          return `${y}-${String(monthMap[mStr]).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        }
+      }
+
+      return null;
+    }
+
+    let PARSED_IMPORT_DATA = [];
+
+    // Parser Excel yang kebal error (fault-tolerant & fuzzy matching)
+    async function handleExcelImport(file) {
+      if (!file) return;
+      showToast('Membaca file Excel...', 'info');
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(arrayBuffer);
+
+        // Cari worksheet timesheet
+        let ws = wb.getWorksheet('Timesheet Template') || wb.getWorksheet('Timesheet') || wb.worksheets[0];
+        if (!ws) {
+          showToast('Sheet timesheet tidak ditemukan di file Excel.', 'err');
+          return;
+        }
+
+        // Cari baris header secara dinamis
+        let headerRowIdx = -1;
+        let colMap = { date: -1, pid: -1, act: -1, loc: -1, hrs: -1 };
+
+        ws.eachRow((row, rowNumber) => {
+          if (headerRowIdx !== -1) return;
+          const values = row.values || [];
+          values.forEach((v, colIdx) => {
+            if (!v) return;
+            const s = String(v).toLowerCase();
+            if (s.includes('tanggal') || s.includes('date')) colMap.date = colIdx;
+            if (s.includes('project') || s.includes('pid')) colMap.pid = colIdx;
+            if (s.includes('aktivitas') || s.includes('activity') || s.includes('kegiatan') || s.includes('deskripsi')) colMap.act = colIdx;
+            if (s.includes('lokasi') || s.includes('location') || s.includes('tempat')) colMap.loc = colIdx;
+            if (s.includes('jam') || s.includes('hour') || s.includes('billable') || s.includes('waktu')) colMap.hrs = colIdx;
+          });
+
+          if (colMap.date !== -1 && (colMap.pid !== -1 || colMap.act !== -1)) {
+            headerRowIdx = rowNumber;
+          }
+        });
+
+        if (headerRowIdx === -1) {
+          headerRowIdx = 6;
+          colMap = { date: 2, pid: 4, act: 5, loc: 6, hrs: 7 };
+        }
+
+        const parsedRows = [];
+        const knownPids = Object.keys(PROJECTS || {});
+        let validCount = 0;
+        let holidayCount = 0;
+        let unknownPidCount = 0;
+
+        ws.eachRow((row, rowNumber) => {
+          if (rowNumber <= headerRowIdx) return;
+
+          const rawDate = colMap.date !== -1 ? row.getCell(colMap.date).value : null;
+          const parsedDate = parseExcelDate(rawDate);
+          if (!parsedDate) return;
+
+          let rawPid = colMap.pid !== -1 ? String(row.getCell(colMap.pid).value || '').trim() : '';
+          let rawAct = colMap.act !== -1 ? String(row.getCell(colMap.act).value || '').trim() : '';
+          let rawLoc = colMap.loc !== -1 ? String(row.getCell(colMap.loc).value || '').trim() : '';
+          let rawHrs = colMap.hrs !== -1 ? String(row.getCell(colMap.hrs).value || '').trim() : '';
+
+          if (rawPid === '-') rawPid = '';
+          if (rawAct === '-') rawAct = '';
+          if (rawLoc === '-') rawLoc = '';
+          if (rawHrs === '-') rawHrs = '';
+
+          const isHolDesc = rawAct.toLowerCase().includes('libur') || rawAct.toLowerCase().includes('holiday') || rawAct.toLowerCase().includes('weekend');
+
+          if (rawHrs) {
+            rawHrs = rawHrs.replace(/(\d{1,2})\.(\d{2})/g, '$1:$2');
+            if (/^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}$/.test(rawHrs)) {
+              const parts = rawHrs.split('-').map(s => s.trim());
+              rawHrs = `${parts[0].padStart(5, '0')} - ${parts[1].padStart(5, '0')}`;
+            }
+          }
+
+          let warning = null;
+          if (rawPid && knownPids.length && !knownPids.includes(rawPid)) {
+            const matchByName = Object.entries(PROJECTS).find(([k, v]) => (v.name || '').toLowerCase() === rawPid.toLowerCase() || (v.projectId || '').toLowerCase() === rawPid.toLowerCase());
+            if (matchByName) {
+              rawPid = matchByName[0];
+            } else {
+              warning = 'Project ID belum terdaftar di Master';
+              unknownPidCount++;
+            }
+          }
+
+          if (isHolDesc) {
+            holidayCount++;
+          } else if (rawPid || rawAct) {
+            validCount++;
+          }
+
+          parsedRows.push({
+            date: parsedDate,
+            pid: rawPid,
+            activity: rawAct,
+            location: rawLoc,
+            hours: rawHrs,
+            isHoliday: isHolDesc,
+            warning: warning
+          });
+        });
+
+        if (!parsedRows.length) {
+          showToast('Tidak ada baris tanggal yang berhasil dibaca dari file Excel.', 'err');
+          return;
+        }
+
+        PARSED_IMPORT_DATA = parsedRows;
+        renderImportPreviewModal(parsedRows, validCount, holidayCount, unknownPidCount);
+      } catch (err) {
+        console.error('handleExcelImport error:', err);
+        showToast('Gagal membaca file Excel: ' + (err.message || 'Format file bermasalah'), 'err');
+      }
+    }
+
+    function renderImportPreviewModal(rows, validCount, holidayCount, unknownPidCount) {
+      const modal = document.getElementById('modalImportPreview');
+      const tbody = document.getElementById('importPreviewTbody');
+      const statsText = document.getElementById('importStatsText');
+      const statsBadges = document.getElementById('importStatsBadges');
+      const subtitle = document.getElementById('importPreviewSubtitle');
+
+      if (subtitle) subtitle.textContent = `Ditemukan ${rows.length} baris tanggal untuk periode ${periodLabel(CURRENT_PERIOD)}`;
+      if (statsText) statsText.textContent = `${validCount} baris kerja terisi, ${holidayCount} hari libur`;
+
+      let badgesHtml = `<span class="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-100 text-blue-700">${rows.length} Total Baris</span>`;
+      if (unknownPidCount > 0) {
+        badgesHtml += `<span class="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-100 text-amber-800">⚠️ ${unknownPidCount} Project ID Baru</span>`;
+      }
+      if (statsBadges) statsBadges.innerHTML = badgesHtml;
+
+      let trs = '';
+      rows.forEach((r, i) => {
+        let statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500">Kosong</span>';
+        if (r.isHoliday) {
+          statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-rose-50 text-rose-600 font-medium">Libur</span>';
+        } else if (r.warning) {
+          statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700 font-medium" title="${r.warning}">⚠️ Baru</span>`;
+        } else if (r.pid || r.activity) {
+          statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-green-50 text-green-700 font-medium">✓ Siap</span>';
+        }
+
+        const trBg = r.isHoliday ? 'bg-slate-50 opacity-75' : (r.warning ? 'bg-amber-50/40' : (i % 2 === 1 ? 'bg-slate-50/50' : ''));
+        trs += `<tr class="border-b border-slate-100 ${trBg}">
+          <td class="py-2.5 px-3 font-semibold text-slate-700 whitespace-nowrap">${r.date}</td>
+          <td class="py-2.5 px-3 text-blue-600 font-medium">${r.pid || '-'}</td>
+          <td class="py-2.5 px-3 text-slate-600 truncate max-w-[220px]" title="${r.activity || ''}">${r.activity || '-'}</td>
+          <td class="py-2.5 px-3 text-slate-600">${r.location || '-'}</td>
+          <td class="py-2.5 px-3 font-medium text-slate-700">${r.hours || '-'}</td>
+          <td class="py-2.5 px-3">${statusBadge}</td>
+        </tr>`;
+      });
+
+      if (tbody) tbody.innerHTML = trs;
+      if (modal) modal.style.display = 'flex';
+      lucide.createIcons();
+    }
+
+    function applyImportedRows() {
+      if (!PARSED_IMPORT_DATA || !PARSED_IMPORT_DATA.length) return;
+      let appliedCount = 0;
+
+      PARSED_IMPORT_DATA.forEach(imported => {
+        const target = rowState.find(r => matchDateLoose(r.date, imported.date));
+        if (target) {
+          if (imported.isHoliday) {
+            target.holiday = true;
+            target.pid = null;
+            target.activity = imported.activity || 'Hari Libur';
+            target.location = null;
+            target.hours = null;
+            target.mandays = 0;
+            target.filled = true;
+          } else if (imported.pid || imported.activity || imported.hours) {
+            target.holiday = false;
+            target.pid = imported.pid || null;
+            target.activity = imported.activity || null;
+            target.location = imported.location || 'The Prasada';
+            target.hours = imported.hours || '08:30 - 17:30';
+            target.mandays = getMandaysFromHours(target.hours);
+            target.filled = !!(target.pid || target.activity);
+            if (target.pid) trackUsage(target.pid, target.activity);
+            appliedCount++;
+          }
+        }
+      });
+
+      markTimesheetDirty();
+      render();
+      closeImportPreviewModal();
+      showToast(`Berhasil menerapkan ${appliedCount} baris timesheet dari Excel!`, 'ok');
+    }
+
+    function closeImportPreviewModal() {
+      const modal = document.getElementById('modalImportPreview');
+      if (modal) modal.style.display = 'none';
+      const fileInput = document.getElementById('excelFileInput');
+      if (fileInput) fileInput.value = '';
+    }
+
+    // Event listeners untuk Template & Import Excel
+    document.getElementById('btnDownloadTemplate')?.addEventListener('click', downloadExcelTemplate);
+    document.getElementById('btnImportExcel')?.addEventListener('click', () => {
+      document.getElementById('excelFileInput')?.click();
+    });
+    document.getElementById('excelFileInput')?.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        handleExcelImport(e.target.files[0]);
+      }
+    });
+    document.getElementById('btnModalImportClose')?.addEventListener('click', closeImportPreviewModal);
+    document.getElementById('btnModalImportCancel')?.addEventListener('click', closeImportPreviewModal);
+    document.getElementById('btnModalImportApply')?.addEventListener('click', applyImportedRows);
 
     // =========================================================
     // EXPORT PDF (via browser print, template resmi Integra)
