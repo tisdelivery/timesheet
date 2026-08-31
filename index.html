@@ -4059,12 +4059,18 @@
         }
       });
     }
+    function toCanonicalYMD(val) {
+      if (!val) return '';
+      const str = String(val).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+      const parsed = parseExcelDate(str);
+      if (parsed) return parsed;
+      return str.toLowerCase().replace(/\b0(\d)/g, '$1');
+    }
+
     function matchDateLoose(a, b) {
-      // Normalisasi: trim, hapus leading zero, lowercase
-      function norm(s) {
-        return String(s).trim().toLowerCase().replace(/\b0(\d)/g, '$1');
-      }
-      return norm(a) === norm(b);
+      if (!a || !b) return false;
+      return toCanonicalYMD(a) === toCanonicalYMD(b);
     }
 
     function trackUsage(pid, activity) {
