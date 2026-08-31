@@ -1291,7 +1291,7 @@ html,body{overflow-x:hidden;max-width:100%;}
             <div><label class="text-[11px] font-semibold text-slate-500 block mb-1">Start Kontrak</label><input id="uStartKontrak" type="date"></div>
             <div><label class="text-[11px] font-semibold text-slate-500 block mb-1">End Kontrak</label><input id="uEndKontrak" type="date"></div>
             <div><label class="text-[11px] font-semibold text-slate-500 block mb-1">Role</label>
-              <select id="uRole"><option value="user">User (Freelance)</option><option value="admin">Admin</option><option value="approver_pm">Approver - Project Manager</option><option value="approver_depthead">Approver - Dept Head</option><option value="approver_divhead">Approver - Division Head</option></select>
+              <select id="uRole"><option value="user">User (Tenaga Ahli)</option><option value="admin">Admin</option><option value="approver_pm">Approver - Project Manager</option><option value="approver_depthead">Approver - Dept Head</option><option value="approver_divhead">Approver - Division Head</option></select>
             </div>
             <div><label class="text-[11px] font-semibold text-slate-500 block mb-1">Status</label>
               <select id="uStatus"><option value="Aktif">Aktif</option><option value="Non-aktif">Non-aktif</option></select>
@@ -2362,7 +2362,7 @@ function initSession(user){
     }
   }
 
-  // Menu "Profil Saya & Dokumen" HANYA untuk role 'user' (Konsultan / Freelance).
+  // Menu "Profil Saya & Dokumen" HANYA untuk role 'user' (Konsultan / Tenaga Ahli).
   // Sembunyikan untuk administrator, PM, Dept Head, Div Head.
   const btnProf = document.getElementById('btnOpenUserProfile');
   if(btnProf){
@@ -5938,7 +5938,7 @@ function openUserProfileModal(){
   
   // Fill Biodata Fields
   document.getElementById('profUsername').value = CURRENT_USER.username || '';
-  document.getElementById('profRole').value = CURRENT_USER.role === 'admin' ? 'Administrator' : (CURRENT_USER.role === 'user' ? 'User (Freelance)' : CURRENT_USER.role);
+  document.getElementById('profRole').value = CURRENT_USER.role === 'admin' ? 'Administrator' : (CURRENT_USER.role === 'user' ? 'User (Tenaga Ahli)' : CURRENT_USER.role);
   document.getElementById('profProject').value = CURRENT_USER.project || '-';
   document.getElementById('profPosition').value = CURRENT_USER.position || '-';
   document.getElementById('profFullName').value = CURRENT_USER.fullname || '';
