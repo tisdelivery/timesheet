@@ -5672,18 +5672,19 @@
 
       if (rowState && rowState.length > 0) {
         rowState.forEach(r => {
-          if (!r.isHoliday) daysTotal++;
-          if (r.projectId || r.activity) {
+          if (!r.holiday) daysTotal++;
+          if (r.filled || r.pid || r.activity) {
             daysFilled++;
-            const hrs = parseWorkHours(r.workHours);
+            const hrs = parseWorkHours(r.hours);
             totalHours += hrs;
-            totalMandays += (hrs / 8);
+            const m = parseFloat(r.mandays) || (hrs ? (hrs / 8) : 1.0);
+            totalMandays += m;
             rowsHtml += `<tr class="border-b border-slate-100 hover:bg-slate-50">
           <td class="py-2.5 px-3 font-semibold text-slate-700">${r.date}</td>
-          <td class="py-2.5 px-3 text-blue-600 font-medium">${r.projectId || '-'}</td>
+          <td class="py-2.5 px-3 text-blue-600 font-medium">${r.pid || '-'}</td>
           <td class="py-2.5 px-3 text-slate-600 truncate max-w-[220px]" title="${r.activity || ''}">${r.activity || '-'}</td>
           <td class="py-2.5 px-3 text-slate-600">${r.location || '-'}</td>
-          <td class="py-2.5 px-3 font-medium text-slate-700">${r.workHours || '-'}</td>
+          <td class="py-2.5 px-3 font-medium text-slate-700">${r.hours || '-'}</td>
         </tr>`;
           }
         });
@@ -5693,6 +5694,25 @@
       const dTotal = document.getElementById('dashDaysTotal'); if (dTotal) dTotal.textContent = daysTotal;
       const dHours = document.getElementById('dashTotalHours'); if (dHours) dHours.textContent = Math.round(totalHours) + ' jam';
       const dMandays = document.getElementById('dashTotalMandays'); if (dMandays) dMandays.textContent = totalMandays.toFixed(1);
+
+      const elStatus = document.getElementById('dashApprovalStatus');
+      const elSub = document.getElementById('dashApprovalSub');
+      if (elStatus && elSub) {
+        const sub = MY_LATEST_SUBMISSION;
+        if (!sub) {
+          elStatus.textContent = 'Draft';
+          elStatus.style.color = '';
+          elSub.textContent = 'Belum disubmit';
+        } else {
+          elStatus.textContent = APPROVAL_STATUS_LABEL[sub.Status] || sub.Status || '-';
+          elStatus.style.color = sub.Status === 'Approved' ? 'var(--green)' : sub.Status === 'Rejected' ? 'var(--red)' : 'var(--amber)';
+          if (sub.Status === 'Rejected') {
+            elSub.textContent = sub.RejectReason ? `Ditolak — "${sub.RejectReason}"` : 'Ditolak, silakan revisi';
+          } else {
+            elSub.textContent = `Periode ${sub.PeriodStart} s/d ${sub.PeriodEnd}`;
+          }
+        }
+      }
 
       if (tbody) {
         if (rowsHtml) {
