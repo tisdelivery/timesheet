@@ -5547,19 +5547,27 @@
 
         ws.eachRow((row, rowNumber) => {
           if (headerRowIdx !== -1) return;
+          const tempMap = { date: -1, pid: -1, act: -1, loc: -1, hrs: -1 };
           const values = row.values || [];
+
+          // Abaikan baris yang memiliki sel berisi teks panjang (> 35 karakter) seperti petunjuk/banner
+          const hasLongCell = values.some(v => v && String(v).length > 35);
+          if (hasLongCell) return;
+
           values.forEach((v, colIdx) => {
             if (!v) return;
-            const s = String(v).toLowerCase();
-            if (s.includes('tanggal') || s.includes('date')) colMap.date = colIdx;
-            if (s.includes('project') || s.includes('pid')) colMap.pid = colIdx;
-            if (s.includes('aktivitas') || s.includes('activity') || s.includes('kegiatan') || s.includes('deskripsi')) colMap.act = colIdx;
-            if (s.includes('lokasi') || s.includes('location') || s.includes('tempat')) colMap.loc = colIdx;
-            if (s.includes('jam') || s.includes('hour') || s.includes('billable') || s.includes('waktu')) colMap.hrs = colIdx;
+            const s = String(v).toLowerCase().trim();
+            if (s.includes('tanggal') || s.includes('date')) tempMap.date = colIdx;
+            if (s.includes('project') || s.includes('pid')) tempMap.pid = colIdx;
+            if (s.includes('aktivitas') || s.includes('activity') || s.includes('kegiatan') || s.includes('deskripsi')) tempMap.act = colIdx;
+            if (s.includes('lokasi') || s.includes('location') || s.includes('tempat')) tempMap.loc = colIdx;
+            if (s.includes('jam') || s.includes('hour') || s.includes('billable') || s.includes('waktu')) tempMap.hrs = colIdx;
           });
 
-          if (colMap.date !== -1 && (colMap.pid !== -1 || colMap.act !== -1)) {
+          // Header sah jika kolom tanggal dan project/aktivitas berada pada kolom yang BERBEDA
+          if (tempMap.date !== -1 && (tempMap.pid !== -1 || tempMap.act !== -1) && tempMap.date !== tempMap.pid && tempMap.date !== tempMap.act) {
             headerRowIdx = rowNumber;
+            colMap = tempMap;
           }
         });
 
