@@ -5523,6 +5523,20 @@
       return null;
     }
 
+    // Helper: Ekstrak nilai teks murni dari sel ExcelJS (menangani string, formula, richText, dll)
+    function getCellTextValue(cell) {
+      if (!cell || cell.value === null || cell.value === undefined) return '';
+      let v = cell.value;
+      if (typeof v === 'object') {
+        if (v instanceof Date) return parseExcelDate(v) || '';
+        if (v.result !== undefined && v.result !== null) v = v.result;
+        else if (v.text !== undefined && v.text !== null) v = v.text;
+        else if (v.richText && Array.isArray(v.richText)) v = v.richText.map(t => (t && t.text) || '').join('');
+        else if (v.hyperlink && v.text) v = v.text;
+      }
+      return String(v).trim();
+    }
+
     let PARSED_IMPORT_DATA = [];
 
     // Parser Excel yang kebal error (fault-tolerant & fuzzy matching)
@@ -5557,11 +5571,11 @@
           values.forEach((v, colIdx) => {
             if (!v) return;
             const s = String(v).toLowerCase().trim();
-            if (s.includes('tanggal') || s.includes('date')) tempMap.date = colIdx;
-            if (s.includes('project') || s.includes('pid')) tempMap.pid = colIdx;
-            if (s.includes('aktivitas') || s.includes('activity') || s.includes('kegiatan') || s.includes('deskripsi')) tempMap.act = colIdx;
-            if (s.includes('lokasi') || s.includes('location') || s.includes('tempat')) tempMap.loc = colIdx;
-            if (s.includes('jam') || s.includes('hour') || s.includes('billable') || s.includes('waktu')) tempMap.hrs = colIdx;
+            if (s.includes('tanggal') || s.includes('date') || s.includes('tgl')) tempMap.date = colIdx;
+            if (s.includes('project') || s.includes('pid') || s.includes('proj')) tempMap.pid = colIdx;
+            if (s.includes('aktivitas') || s.includes('activity') || s.includes('kegiatan') || s.includes('deskripsi') || s.includes('keterangan') || s.includes('uraian') || s.includes('task') || s.includes('detail')) tempMap.act = colIdx;
+            if (s.includes('lokasi') || s.includes('location') || s.includes('tempat') || s.includes('site')) tempMap.loc = colIdx;
+            if (s.includes('jam') || s.includes('hour') || s.includes('billable') || s.includes('waktu') || s.includes('time')) tempMap.hrs = colIdx;
           });
 
           // Header sah jika kolom tanggal dan project/aktivitas berada pada kolom yang BERBEDA
@@ -5589,10 +5603,10 @@
           const parsedDate = parseExcelDate(rawDate);
           if (!parsedDate) return;
 
-          let rawPid = colMap.pid !== -1 ? String(row.getCell(colMap.pid).value || '').trim() : '';
-          let rawAct = colMap.act !== -1 ? String(row.getCell(colMap.act).value || '').trim() : '';
-          let rawLoc = colMap.loc !== -1 ? String(row.getCell(colMap.loc).value || '').trim() : '';
-          let rawHrs = colMap.hrs !== -1 ? String(row.getCell(colMap.hrs).value || '').trim() : '';
+          let rawPid = colMap.pid !== -1 ? getCellTextValue(row.getCell(colMap.pid)) : '';
+          let rawAct = colMap.act !== -1 ? getCellTextValue(row.getCell(colMap.act)) : '';
+          let rawLoc = colMap.loc !== -1 ? getCellTextValue(row.getCell(colMap.loc)) : '';
+          let rawHrs = colMap.hrs !== -1 ? getCellTextValue(row.getCell(colMap.hrs)) : '';
 
           if (rawPid === '-') rawPid = '';
           if (rawAct === '-') rawAct = '';
@@ -5710,10 +5724,10 @@
             target.filled = true;
           } else if (imported.pid || imported.activity || imported.hours) {
             target.holiday = false;
-            target.pid = imported.pid || null;
-            target.activity = imported.activity || null;
-            target.location = imported.location || 'The Prasada';
-            target.hours = imported.hours || '08:30 - 17:30';
+            target.pid = imported.pid || target.pid || null;
+            target.activity = imported.activity || target.activity || null;
+            target.location = imported.location || target.location || 'The Prasada';
+            target.hours = imported.hours || target.hours || '08:30 - 17:30';
             target.mandays = getMandaysFromHours(target.hours);
             target.filled = !!(target.pid || target.activity);
             if (target.pid) trackUsage(target.pid, target.activity);
