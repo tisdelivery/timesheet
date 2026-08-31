@@ -5619,7 +5619,15 @@
           if (rawLoc === '-') rawLoc = '';
           if (rawHrs === '-') rawHrs = '';
 
-          const isHolDesc = rawAct.toLowerCase().includes('libur') || rawAct.toLowerCase().includes('holiday') || rawAct.toLowerCase().includes('weekend');
+          // Deteksi hari libur: HANYA jika Project ID kosong DAN deskripsinya adalah 'Hari Libur' / 'Holiday'
+          const isHolDesc = !rawPid && (
+            rawAct.toLowerCase() === 'hari libur' ||
+            rawAct.toLowerCase() === 'libur' ||
+            rawAct.toLowerCase() === 'holiday' ||
+            rawAct.toLowerCase() === 'weekend' ||
+            /^hari\s+libur/i.test(rawAct) ||
+            /^libur/i.test(rawAct)
+          );
 
           if (rawHrs) {
             rawHrs = rawHrs.replace(/(\d{1,2})\.(\d{2})/g, '$1:$2');
