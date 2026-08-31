@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 
 <head>
@@ -1340,12 +1340,20 @@
               <p class="text-xs text-slate-300 mt-1" id="dashWelcomePeriod">Ringkasan aktivitas timesheet untuk periode
                 berjalan.</p>
             </div>
-            <button id="btnDashGoToTimesheet"
-              class="btn btn-blue px-4 py-2.5 shadow-md flex items-center justify-center gap-2 w-full sm:w-auto shrink-0"
-              style="background:#2563EB;">
-              <i data-lucide="calendar-clock" class="w-4 h-4"></i>
-              <span>Isi Timesheet Sekarang</span>
-            </button>
+            <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
+              <button id="btnDashGantiPeriode"
+                class="btn px-4 py-2.5 shadow-md flex items-center justify-center gap-2"
+                style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:white;">
+                <i data-lucide="calendar" class="w-4 h-4"></i>
+                <span>Ganti Periode</span>
+              </button>
+              <button id="btnDashGoToTimesheet"
+                class="btn btn-blue px-4 py-2.5 shadow-md flex items-center justify-center gap-2"
+                style="background:#2563EB;">
+                <i data-lucide="calendar-clock" class="w-4 h-4"></i>
+                <span>Isi Timesheet Sekarang</span>
+              </button>
+            </div>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -4747,6 +4755,8 @@
           rowState[idx].aiSuggest = false; render();
         });
       });
+
+      renderDashboardSummary();
     }
 
     function checkAiSuggestion(idx) {
@@ -6070,6 +6080,8 @@
       document.getElementById('modalPeriode').style.display = 'none';
     }
     document.getElementById('btnGantiPeriode').addEventListener('click', openPeriodeModal);
+    document.getElementById('btnDashGantiPeriode')?.addEventListener('click', openPeriodeModal);
+    document.getElementById('topbarPeriodChip')?.addEventListener('click', openPeriodeModal);
     document.getElementById('btnModalPeriodeClose').addEventListener('click', closePeriodeModal);
     document.getElementById('btnModalPeriodeCancel').addEventListener('click', closePeriodeModal);
     // Cegah modal tertutup jika klik tidak sengaja di luar kotak
