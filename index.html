@@ -5891,11 +5891,22 @@
       return isNaN(d.getTime()) ? null : d;
     }
 
-    function resolveApproverName(role, defaultName) {
-      if (role === 'pm') return 'Jodie Satria Effendi';
+    function resolveApproverName(role, projectName, defaultName) {
+      if (role === 'pm') {
+        if (projectName && typeof userList !== 'undefined' && Array.isArray(userList) && userList.length) {
+          const normProj = String(projectName).toLowerCase().trim();
+          const pmUser = userList.find(u => {
+            const uRole = (u.Role || u.role || '').toLowerCase();
+            const uProj = String(u.Project || u.project || '').toLowerCase().trim();
+            return uRole === 'approver_pm' && uProj && (uProj.includes(normProj) || normProj.includes(uProj));
+          });
+          if (pmUser) return pmUser.FullName || pmUser.fullname || pmUser.Username || pmUser.username;
+        }
+        return defaultName || '-';
+      }
       if (role === 'depthead') return 'Wisnu Hendra Pratama';
       if (role === 'divhead') return 'Agust Triyanto';
-      return defaultName || '';
+      return defaultName || '-';
     }
 
     function renderPrintDocument({ consultant, position, project, customer, monthYearLabel, year, month, rows, approval, isManualSign = false }) {
@@ -5913,10 +5924,10 @@
         revNote.style.display = 'none';
       }
 
-      // Nama-nama pejabat penandatangan
-      const pmName = (approval && approval.PM_Name) || resolveApproverName('pm', 'Jodie Satria Effendi');
-      const deptHeadName = (approval && approval.DeptHead_Name) || resolveApproverName('depthead', 'Wisnu Hendra Pratama');
-      const divHeadName = (approval && approval.DivHead_Name) || resolveApproverName('divhead', 'Agust Triyanto');
+      // Nama-nama pejabat penandatangan (PM disesuaikan secara dinamis dari Project)
+      const pmName = (approval && approval.PM_Name) || resolveApproverName('pm', project, '');
+      const deptHeadName = (approval && approval.DeptHead_Name) || resolveApproverName('depthead', project, 'Wisnu Hendra Pratama');
+      const divHeadName = (approval && approval.DivHead_Name) || resolveApproverName('divhead', project, 'Agust Triyanto');
 
       if (isManualSign) {
         // Mode TTD Manual (Polos): Tampilkan nama pejabat di bawah kotak, tapi kotak tanda tangan bersih tanpa gambar digital, tanpa timestamp, tanpa riwayat approval, tanpa watermark
@@ -6019,6 +6030,7 @@
         const [y, m] = String(detail.PeriodStart).split('-').map(Number);
         const rows = buildDayRowsFromEntries(period, detail.timesheetRows || []);
         const users = await fetch(`${APPS_SCRIPT_URL}?action=getUsers`).then(r => r.json()).catch(() => []);
+        if (Array.isArray(users) && users.length) userList = users;
         const userMeta = Array.isArray(users) ? users.find(u => (u.FullName && u.FullName.trim().toLowerCase() === String(detail.Consultant).trim().toLowerCase()) || (u.Username && u.Username.trim().toLowerCase() === String(detail.Consultant).trim().toLowerCase())) : null;
         const consSig = (detail && detail.Consultant_Signature) || (userMeta && (userMeta.Signature || userMeta.signature_base64)) || (CURRENT_USER && ((CURRENT_USER.fullname && CURRENT_USER.fullname.trim().toLowerCase() === String(detail.Consultant).trim().toLowerCase()) || (CURRENT_USER.username && CURRENT_USER.username.trim().toLowerCase() === String(detail.Consultant).trim().toLowerCase())) ? (CURRENT_USER.signature_base64 || CURRENT_USER.signature) : null);
         renderPrintDocument({
@@ -6121,6 +6133,12 @@
 
     // Export PDF di halaman Input Timesheet
     async function exportTimesheetPDF(isManualSign = false) {
+      if ((!userList || !userList.length) && APPS_SCRIPT_URL) {
+        try {
+          const uData = await fetch(`${APPS_SCRIPT_URL}?action=getUsers`).then(r => r.json());
+          if (Array.isArray(uData)) userList = uData;
+        } catch (e) {}
+      }
       const match = findSubmissionForPeriod(MY_SUBMISSIONS, CURRENT_PERIOD);
       if (match) { await printSubmission(match.SubmissionID, isManualSign); return; }
       buildPrintTimesheetView(isManualSign);
