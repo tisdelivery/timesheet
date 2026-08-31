@@ -5722,13 +5722,14 @@
             target.hours = null;
             target.mandays = 0;
             target.filled = true;
-          } else if (imported.pid || imported.activity || imported.hours) {
+            appliedCount++;
+          } else {
             target.holiday = false;
-            target.pid = imported.pid || target.pid || null;
-            target.activity = imported.activity || target.activity || null;
-            target.location = imported.location || target.location || 'The Prasada';
-            target.hours = imported.hours || target.hours || '08:30 - 17:30';
-            target.mandays = getMandaysFromHours(target.hours);
+            if (imported.pid !== undefined && imported.pid !== null) target.pid = imported.pid || null;
+            if (imported.activity !== undefined && imported.activity !== null) target.activity = imported.activity || target.activity || null;
+            if (imported.location !== undefined && imported.location !== null) target.location = imported.location || target.location || 'The Prasada';
+            if (imported.hours !== undefined && imported.hours !== null) target.hours = imported.hours || target.hours || '08:30 - 17:30';
+            target.mandays = getMandaysFromHours(target.hours || '08:30 - 17:30');
             target.filled = !!(target.pid || target.activity);
             if (target.pid) trackUsage(target.pid, target.activity);
             appliedCount++;
@@ -5739,7 +5740,13 @@
       markTimesheetDirty();
       render();
       closeImportPreviewModal();
-      showToast(`Berhasil menerapkan ${appliedCount} baris timesheet dari Excel!`, 'ok');
+
+      if (appliedCount > 0) {
+        showToast(`Berhasil menerapkan ${appliedCount} baris timesheet dari Excel!`, 'ok');
+      } else {
+        const firstDate = PARSED_IMPORT_DATA[0] ? PARSED_IMPORT_DATA[0].date : '-';
+        showToast(`0 baris diterapkan: Tanggal file Excel (${firstDate}) tidak cocok dengan Periode Aktif web (${CURRENT_PERIOD.start} s/d ${CURRENT_PERIOD.end}). Silakan sesuaikan periode di web terlebih dahulu.`, 'err');
+      }
     }
 
     function closeImportPreviewModal() {
