@@ -3078,8 +3078,8 @@
             }
             let { data } = await q.order('submitted_at', { ascending: false }).limit(1).maybeSingle();
 
-            // Fallback: jika belum ada submission di periode spesifik ini, cari submission terbaru
-            if (!data) {
+            // Fallback: HANYA jika periode spesifik tidak dikirimkan, baru cari submission terbaru
+            if (!data && (!params.periodStart || !params.periodEnd)) {
               const { data: latest } = await supabaseClient.from('submissions')
                 .select('*')
                 .ilike('consultant', params.consultant || '%')
@@ -4155,7 +4155,11 @@
       fetch(`${APPS_SCRIPT_URL}?action=getMySubmissionStatus&consultant=${encodeURIComponent(CONSULTANT_NAME)}&periodStart=${encodeURIComponent(CURRENT_PERIOD.start)}&periodEnd=${encodeURIComponent(CURRENT_PERIOD.end)}`)
         .then(r => r.json())
         .then(d => {
-          MY_LATEST_SUBMISSION = d && (d.submission || (d.status ? { Status: d.status, PeriodStart: CURRENT_PERIOD.start, PeriodEnd: CURRENT_PERIOD.end } : null)) || null;
+          let sub = d && d.submission ? d.submission : (d && d.status && d.status !== 'Draft' ? { Status: d.status, PeriodStart: CURRENT_PERIOD.start, PeriodEnd: CURRENT_PERIOD.end } : null);
+          if (sub && sub.PeriodStart && (sub.PeriodStart !== CURRENT_PERIOD.start || sub.PeriodEnd !== CURRENT_PERIOD.end)) {
+            sub = null;
+          }
+          MY_LATEST_SUBMISSION = sub;
           renderMySubmissionStatus();
           updateSubmitButtonState();
           render(); // supaya badge lock di baris timesheet ikut ke-refresh
