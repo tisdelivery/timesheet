@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="id">
 
 <head>
@@ -4645,12 +4645,8 @@
             });
           }
           inp.addEventListener('blur', () => {
-            if (isTimesheetDirty && !isSavingDraft && CURRENT_USER && CURRENT_USER.role === 'user') {
-              setTimeout(() => {
-                if (isTimesheetDirty && !isSavingDraft && document.activeElement !== inp) {
-                  saveToSheets('Draft', { isAutoSave: true });
-                }
-              }, 1500);
+            if (isTimesheetDirty && !isSavingDraft) {
+              updateAutoSaveBadgeStatus('dirty');
             }
           });
         });
@@ -5026,13 +5022,13 @@
       isTimesheetDirty = true;
       updateAutoSaveBadgeStatus(isTyping ? 'typing' : 'dirty');
 
-      // Debounce Auto Save: simpan otomatis 3.5 detik SETELAH pengguna benar-benar berhenti mengetik
+      // Debounce Auto Save: simpan otomatis 1 menit (60 detik) SETELAH pengguna berhenti mengetik
       if (typingDebounceTimer) clearTimeout(typingDebounceTimer);
       typingDebounceTimer = setTimeout(() => {
         if (isTimesheetDirty && !isSavingDraft && CURRENT_USER && CURRENT_USER.role === 'user') {
           saveToSheets('Draft', { isAutoSave: true });
         }
-      }, 3500);
+      }, 60000);
     }
 
     function updateAutoSaveBadgeStatus(state, timeStr = '') {
