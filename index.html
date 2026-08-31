@@ -4101,13 +4101,49 @@
       Rejected: 'Ditolak',
     };
 
+    function getCurrentPeriodStatus() {
+      // 1. Cek dari MY_LATEST_SUBMISSION jika periodenya cocok
+      if (MY_LATEST_SUBMISSION && (
+        !MY_LATEST_SUBMISSION.PeriodStart || (
+          matchDateLoose(MY_LATEST_SUBMISSION.PeriodStart, CURRENT_PERIOD.start) &&
+          matchDateLoose(MY_LATEST_SUBMISSION.PeriodEnd, CURRENT_PERIOD.end)
+        )
+      )) {
+        return MY_LATEST_SUBMISSION.Status || 'Draft';
+      }
+
+      // 2. Cek dari daftar MY_SUBMISSIONS jika ada submission untuk CURRENT_PERIOD
+      if (MY_SUBMISSIONS && MY_SUBMISSIONS.length) {
+        const sub = (MY_SUBMISSIONS || []).find(s =>
+          matchDateLoose(s.PeriodStart || s.period_start, CURRENT_PERIOD.start) &&
+          matchDateLoose(s.PeriodEnd || s.period_end, CURRENT_PERIOD.end)
+        );
+        if (sub) {
+          MY_LATEST_SUBMISSION = sub;
+          return sub.Status || 'Draft';
+        }
+      }
+
+      // 3. Cek dari baris rowState jika ada status Approved/Submitted pada data sheet
+      if (rowState && rowState.length) {
+        const filledRows = rowState.filter(r => !r.holiday && r.filled);
+        if (filledRows.length > 0 && filledRows.every(r => r.status === 'Approved')) {
+          return 'Approved';
+        }
+        if (filledRows.length > 0 && filledRows.every(r => r.status === 'Submitted' || r.status === 'Approved_PM' || r.status === 'Approved_DeptHead')) {
+          return filledRows[0].status;
+        }
+      }
+
+      return 'Draft';
+    }
+
     function updateSubmitButtonState() {
       const btnSubmit = document.getElementById('btnSubmit');
       const btnDraft = document.getElementById('btnSimpanDraft');
       if (!btnSubmit) return;
 
-      const sub = MY_LATEST_SUBMISSION;
-      const status = sub ? sub.Status : 'Draft';
+      const status = getCurrentPeriodStatus();
 
       if (status === 'Approved') {
         btnSubmit.className = 'btn';
@@ -5215,6 +5251,16 @@
       lucide.createIcons();
     });
     document.getElementById('btnSubmit').addEventListener('click', async () => {
+      const currStatus = getCurrentPeriodStatus();
+      if (currStatus === 'Approved') {
+        showToast('Timesheet periode ini telah disetujui (Approved) dan tidak dapat diajukan kembali.', 'err');
+        return;
+      }
+      if (currStatus === 'Submitted' || currStatus === 'Approved_PM' || currStatus === 'Approved_DeptHead') {
+        showToast('Timesheet periode ini sedang dalam proses approval dan tidak dapat diajukan kembali.', 'err');
+        return;
+      }
+
       const workDays = rowState.filter(r => !r.holiday);
       const unfilled = workDays.filter(r => !r.filled || !r.pid);
       if (unfilled.length > 0) {
